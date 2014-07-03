@@ -46,7 +46,7 @@ class OwMaster(object):
         self.simultaneousTemperaturePending = False
 
         try:
-            # These initial scans will enque jobs to the scheduler
+            # These initial scans will enqueue jobs to the scheduler
             self.scanFull()
             self.scanAlarm()
 
@@ -82,8 +82,6 @@ class OwMaster(object):
         self.queueHighPrio(self.alarmScanInterval, self.scanAlarm, [])
 
     def scan(self, alarmMode):
-# pyownet.protocol.OwnetError: [Errno 5] legacy - IO error: '/uncached/alarm'
-#        self.log.debug("Scanning %s ", "alarm" if alarmMode else "bus")
         try:
             if alarmMode:
                 ids = self.bus.owDirAlarm(uncached=True)
@@ -94,7 +92,7 @@ class OwMaster(object):
             return 
 
 #        self.log.debug("%s scan executed in %.2fms", \
- #               "Alarm" if alarmMode else "Bus", self.bus.lastIoStats.time*1000)
+#                "Alarm" if alarmMode else "Bus", self.bus.lastIoStats.time*1000)
 
         deviceList = []
         for devId in ids:
@@ -110,6 +108,7 @@ class OwMaster(object):
             missing = self.inventory.list(skipList = deviceList)
             if missing:
                 self.log.warn("Missing devices: %s", missing)
+            # TODO: Handle some way
 
         simultaneous = {}
         for dev in deviceList:

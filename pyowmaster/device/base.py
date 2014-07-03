@@ -11,15 +11,6 @@ OwIoStatistic.OP_DIR=3
 
 DeviceId = namedtuple('DeviceId', 'id alias')
 
-class OwEventBase(object):
-    """Base object for any events sent emitted from
-    1-Wire devices as result of alarms or regular polling"""
-    def __init__(self):
-        self.id = None
-
-    def __str__(self):
-        return "OwEvent[%s, unknown]" % (self.id)
-
 class OwDevice(object):
     def __init__(self, ow, id):
         self.log = logging.getLogger(type(self).__name__)
@@ -89,7 +80,6 @@ class OwDevice(object):
         return data
 
     def emitEvent(self, event):
-        # TODO
         event.deviceId = self.deviceId
         self.log.info("%s: %s", self, event)
 

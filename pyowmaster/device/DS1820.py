@@ -1,5 +1,7 @@
 # vim: set expandtab sw=4 softtabstop=4 fileencoding=utf8 :
-from base import OwDevice, OwEventBase
+from base import OwDevice
+from ..event.events import OwTemperatureEvent
+
 import time
 from pyownet.protocol import bytes2str, str2bytez
 
@@ -9,15 +11,6 @@ def register(factory):
     factory.register("22", DS1820) # DS1822
     factory.register("3B", DS1820) # DS1825
     factory.register("42", DS1820) # DS28EA00
-
-class OwTemperatureEvent(OwEventBase):
-    """Describes an temperature reading"""
-    def __init__(self, value):
-        super(OwTemperatureEvent, self).__init__()
-        self.value = value
-
-    def __str__(self):
-        return "OwTemperatureEvent[%s, %.2f C]" % (self.deviceId, self.value)
 
 class DS1820(OwDevice):
     """Implements a DS1820, or actually any device with /temperature"""
