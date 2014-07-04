@@ -27,7 +27,7 @@ class DS1820(OwDevice):
     def config(self, config_get):
         super(DS1820, self).config(config_get)
 
-        self.unit = config_get('owmaster', 'temperature_unit').upper()
+        self.unit = config_get('owmaster', 'temperature_unit', 'C').upper()
         self.min_temp = config_get((self.id, 'DS1820'), 'min_temp', TEMP_MIN[self.unit])
         self.max_temp = config_get((self.id, 'DS1820'), 'max_temp', TEMP_MAX[self.unit])
 
