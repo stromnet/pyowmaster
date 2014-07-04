@@ -80,13 +80,15 @@ class ThreadedOwEventHandler(OwEventHandler):
 
         self.log.debug("Main loop exited")
             
+    def cleanup(self):
+        """Empty method executed after shutdown has returned and all queued events have been processed"""
+        pass
 
     def shutdown(self):
         # Wait for queue to empty
-        self.log.debug("Shutting down")
         self.queue.join()
-        self.log.debug("Killing worker..")
         self.queue.put(None)
-        self.log.debug("Awating threa dterminat")
         self.thread.join()
+
+        self.cleanup()
 
