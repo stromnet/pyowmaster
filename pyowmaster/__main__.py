@@ -5,7 +5,7 @@ from pyownet.protocol import *
 from . import OwMaster
 
 
-def setup_logging(logfile="owmaster.log"):
+def setup_logging(logfile):
 	"""Setup basic logging to console + a logfile"""
 	fmt="%(asctime)-15s %(thread)d %(levelname)-5s %(name)-10s %(message)s"
 	logging.basicConfig(level=logging.DEBUG, format=fmt)
@@ -51,12 +51,16 @@ def config_get(sections, option, default=None):
 
 	return default
 
-def main(cfgfile=None, config_get_fn=None):
+def main(cfgfile=None, config_get_fn=None, configure_logging=True):
 	if cfgfile:
 		read_config(cfgfile)
 
 	if not config_get_fn:
 		config_get_fn = config_get
+
+
+	if configure_logging:
+		setup_logging(config_get('owmaster', 'logfile', 'owmaster.log'))
 
 	try:
 		owm = None
@@ -78,6 +82,5 @@ def main(cfgfile=None, config_get_fn=None):
 
 
 if __name__ == "__main__":
-	setup_logging()
 	main(sys.argv[1] if len(sys.argv) > 1 else "owmaster.cfg")
 

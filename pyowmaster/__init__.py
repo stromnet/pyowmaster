@@ -46,7 +46,9 @@ class OwMaster(object):
         # Init bus object, event dispatcher
         self.bus = OwBus(self.ow)
         self.eventDispatcher = OwEventDispatcher()
-        self.eventDispatcher.add_handler(RRDOwEventHandler('/home/johan/rrd/rrd-new/'))
+
+        # Load handler modules
+        self.load_handlers()
 
         # Init a factory, and then an associated inventory
         self.factory = DeviceFactory(self.ow, self.eventDispatcher, self.config_get)
@@ -87,6 +89,20 @@ class OwMaster(object):
             self.eventDispatcher.shutdown()
         except:
             self.log.error("Unhandled exception while shutting down event handlers", exc_info=True)
+
+    def load_handlers(self):
+        module_names = self.config_get('owmaster', 'modules', None)
+        if not module_names:
+            return
+
+        module_names = module_names.split(" ")
+
+        for module_name in module_names:
+            self.log.debug("Initing module %s", module_name)
+            m = importlib.import_module(module_name)
+            h = m.create(self.config_get)
+            self.eventDispatcher.add_handler(h)
+
 
     def scanFull(self):
         try:
