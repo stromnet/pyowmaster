@@ -11,6 +11,7 @@ from pyownet.protocol import bytes2str,str2bytez,ConnError,OwnetError
 import device
 from device.base import OwBus
 from event.handler import OwEventDispatcher
+from event.rrdhandler import RRDOwEventHandler
 import importlib
 import time, re
 import traceback
@@ -45,10 +46,11 @@ class OwMaster(object):
         # Init bus object, event dispatcher
         self.bus = OwBus(self.ow)
         self.eventDispatcher = OwEventDispatcher()
+        self.eventDispatcher.add_handler(RRDOwEventHandler('/home/johan/rrd/rrd-new/'))
 
         # Init a factory, and then an associated inventory
         self.factory = DeviceFactory(self.ow, self.eventDispatcher, self.config_get)
-        self.inventory = DeviceInventory(self.factory, self.config_get)
+        self.inventory = DeviceInventory(self.factory)
 
         self.lastFullScan = 0
         self.lastAlarmScan = 0
@@ -228,17 +230,22 @@ class DeviceFactory(object):
 
 
 class DeviceInventory(object):
-    def __init__(self, factory, config_get):
+    def __init__(self, factory):
         self.log = logging.getLogger(type(self).__name__)
         self.devices = {}
         self.factory = factory
 
-    """Find a Device object associated with the specified 1-wire ID.
-    
-    As the name indicates, a plain ID can be given, or a path which contains an ID.
-    If the devices is not found, it is created.
-    """
+        # TODO: Preload list of IDs from config..
+        # However, current config, and agoconfig, does not provide listing of individual
+        # nodes....
+
+
     def find(self, idOrPath):
+        """Find a Device object associated with the specified 1-wire ID.
+        
+        As the name indicates, a plain ID can be given, or a path which contains an ID.
+        If the devices is not found, it is created.
+        """
         id = idFromPath(idOrPath)
         if not id:
             # Invalid ID, could be an alias
