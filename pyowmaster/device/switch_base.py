@@ -56,8 +56,8 @@ class OwSwitchDevice(OwDevice):
 
         self.alarm_source = None
 
-    def init(self, config_get):
-        super(OwSwitchDevice, self).init(config_get)
+    def config(self, config_get):
+        super(OwSwitchDevice, self).config(config_get)
 
         self.mode = []
         for ch in range(self.channels):
@@ -72,7 +72,7 @@ class OwSwitchDevice(OwDevice):
         calculate the desired alarm mode"""
         raise Error("_calculate_alarm_setting property must be implemented by sub class")
 
-    def on_seen(self):
+    def on_seen(self, timestamp):
         if self._last_sensed != None:
             # xXX: If already read, skip re-read... When is this
             # required? On re-start?
@@ -93,7 +93,7 @@ class OwSwitchDevice(OwDevice):
 #            self.log.debug("last_sensed inited %d", sensed)
         self._last_sensed = sensed
     
-    def on_alarm(self):
+    def on_alarm(self, timestamp):
         if self.check_alarm_config():
             self.log.warn("%s: Ignoring alarm, device was not ready", self)
             return
@@ -115,7 +115,7 @@ class OwSwitchDevice(OwDevice):
         self.log.debug("%s: alarmed, latch=%d, sensed=%d, last_sensed=%s", \
                 self, latch, sensed, last_sensed)
 
-        self._handle_alarm(latch, sensed, last_sensed)
+        self._handle_alarm(timestamp, latch, sensed, last_sensed)
 
         self._last_sensed = sensed
 
@@ -123,7 +123,7 @@ class OwSwitchDevice(OwDevice):
         """Optional overridable channel name function; return channel identifier based on 0-based index"""
         return ch
 
-    def _handle_alarm(self, latch, sensed, last_sensed):
+    def _handle_alarm(self, timestamp, latch, sensed, last_sensed):
         for ch in range(self.channels):
             mode = self.mode[ch]
             is_input = ((mode & MODE_INPUT) == MODE_INPUT)
@@ -145,9 +145,9 @@ class OwSwitchDevice(OwDevice):
                 (is_input and ((mode & MODE_INPUT_TOGGLE) == MODE_INPUT_TOGGLE)):
                 if ch_has_changed != False:
                     if ch_sensed == ch_active_level:
-                        self.emitEvent(OwSwitchEvent(self._ch_translate(ch), OwSwitchEvent.ON))
+                        self.emitEvent(OwSwitchEvent(timestamp, self._ch_translate(ch), OwSwitchEvent.ON))
                     else:
-                        self.emitEvent(OwSwitchEvent(self._ch_translate(ch), OwSwitchEvent.OFF))
+                        self.emitEvent(OwSwitchEvent(timestamp, self._ch_translate(ch), OwSwitchEvent.OFF))
 
             elif (mode & MODE_INPUT_MOMENTARY) == MODE_INPUT_MOMENTARY:
                 # Two scenarios we must handle (active_level=1):
@@ -163,7 +163,7 @@ class OwSwitchDevice(OwDevice):
                 # In the second scenario, we want to avoid trig on the second latch
 
                 if ch_sensed == ch_active_level or ch_last_sensed != ch_active_level:
-                    self.emitEvent(OwSwitchEvent(self._ch_translate(ch), OwSwitchEvent.TRIGGED))
+                    self.emitEvent(OwSwitchEvent(timestamp, self._ch_translate(ch), OwSwitchEvent.TRIGGED))
                 else:
                     self.log.debug("%s: channel %d latch change ignored", self, ch)
             else:

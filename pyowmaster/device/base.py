@@ -22,8 +22,17 @@ class OwDevice(object):
         self.pathUncached = '/uncached/%s/' % self.id
         self.simultaneous = None
 
-    def init(self, config_get):
+    def init(self, eventDispatcher):
+        self.eventDispatcher = eventDispatcher
+
+    def config(self, config_get):
+        """Configure this device from config file.
+        Base impl just reads alias, first by checking device section for alias,
+        secondary by checking alias section for device name"""
         self.alias = config_get(self.id, 'alias', None)
+        if self.alias == None:
+            self.alias = config_get('aliases', self.id, None)
+
         self.deviceId = DeviceId(self.id, self.alias)
 
     def owRead(self, subPath, uncached=False):
@@ -81,17 +90,17 @@ class OwDevice(object):
 
     def emitEvent(self, event):
         event.deviceId = self.deviceId
-        self.log.info("%s: %s", self, event)
+        self.eventDispatcher.handle_event(event)
 
     def storeIoStatistic(self, stats):
         # just track the last one..
         self.lastIoStats = stats
 
 
-    def on_seen(self):
+    def on_seen(self, timestamp):
         pass
 
-    def on_alarm(self):
+    def on_alarm(self, timestamp):
         self.log.warn("%s: Unhandled alarm" , str(self))
 
     def __str__(self):
@@ -108,9 +117,9 @@ class OwBus(OwDevice):
     def owDirAlarm(self, uncached=False):
         return self.owDir("alarm", uncached=uncached)
 
-    def on_seen(self):
+    def on_seen(self, timestamp):
         raise Error("Not supposed to call on_seen on OwBus")
 
-    def on_alarm(self):
+    def on_alarm(self, timestamp):
         raise Error("Not supposed to call on_alarm on OwBus")
 
