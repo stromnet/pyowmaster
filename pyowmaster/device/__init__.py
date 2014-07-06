@@ -1,3 +1,4 @@
+# vim: set expandtab sw=4 softtabstop=4 fileencoding=utf8 :
 #
 # Copyright 2014 Johan Ström
 #
