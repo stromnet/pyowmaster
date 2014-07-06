@@ -123,6 +123,10 @@ class OwSwitchDevice(OwDevice):
         """Optional overridable channel name function; return channel identifier based on 0-based index"""
         return ch
 
+    def _ch_translate_rev(self, ch):
+        """Optional overridable channel resolve function; return 0-baesd index based on channel identifier"""
+        return int(ch)
+
     def _handle_alarm(self, timestamp, latch, sensed, last_sensed):
         for ch in range(self.channels):
             mode = self.mode[ch]
@@ -180,3 +184,35 @@ class OwSwitchDevice(OwDevice):
             return True
         
         return False
+
+    def set_output(self, channel, value):
+        """Control a channel configured as output, setting the new value to ON or OFF.
+        The actual PIO state is controlled by the output "active high" or "active low" configuration
+        mode.
+
+        value should be True or False. If set to true, we set the output "active".
+
+        If channel is not configured as output, an exception is thrown.
+
+        Note that "active low" refers to the actual logic level, i.e this will 
+        write PIO.xx 1, to enable the transistor, pulling down the line, and activating
+        something by grounding the pin (low).
+        """
+        ch = self._ch_translate_rev(channel)
+        mode = self.mode[ch]
+
+        if not ((mode & MODE_OUTPUT) == MODE_OUTPUT):
+            raise Exception("Channel not configured as output")
+
+        active_high = (mode & MODE_ACTIVE_HIGH) == MODE_ACTIVE_HIGH
+        if (value and active_high) or (not value and not active_high):
+            # PIO off => external pull-up possible => "high"
+            out_value = 0
+        else:
+            # PIO on => pulled to ground => "low"
+            out_value = 1
+
+        channel = self._ch_translate(ch)
+        self.log.info("%s: Writing PIO.%s = %d", self, channel, out_value)
+        self.owWrite('PIO.%s' % channel, out_value)
+

@@ -12,6 +12,7 @@ ALARM_SOURCE_PIO        = 2
 ALARM_SOURCE_SENSED     = 3
 
 CH_NAMES = ['A', 'B']
+CH_IDS= {'A':0, 'B':1}
 
 
 class DS2406(OwSwitchDevice):
@@ -68,3 +69,6 @@ class DS2406(OwSwitchDevice):
 
     def _ch_translate(self, ch):
         return CH_NAMES[ch]
+
+    def _ch_translate_rev(self, ch):
+        return CH_IDS[ch.upper()]
