@@ -280,7 +280,7 @@ class DeviceInventory(object):
                 # Not supported. Store False in dict
                 device = False
             else:
-                self.log.info("New device %s (%s)", id, device)
+                self.log.info("New device %s", device)
 
             self.devices[id] = device
 
