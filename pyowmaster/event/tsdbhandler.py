@@ -4,7 +4,7 @@ from events import *
 
 import socket
 
-def create(config_get):
+def create(config_get, inventory):
     host = config_get('tsdbhandler', 'host', 'localhost')
     port = config_get('tsdbhandler', 'port', 4242)
 

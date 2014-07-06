@@ -47,12 +47,12 @@ class OwMaster(object):
         self.bus = OwBus(self.ow)
         self.eventDispatcher = OwEventDispatcher()
 
-        # Load handler modules
-        self.load_handlers()
-
         # Init a factory, and then an associated inventory
         self.factory = DeviceFactory(self.ow, self.eventDispatcher, self.config_get)
         self.inventory = DeviceInventory(self.factory)
+
+        # Load handler modules
+        self.load_handlers()
 
         self.lastFullScan = 0
         self.lastAlarmScan = 0
@@ -102,7 +102,7 @@ class OwMaster(object):
         for module_name in module_names:
             self.log.debug("Initing module %s", module_name)
             m = importlib.import_module(module_name)
-            h = m.create(self.config_get)
+            h = m.create(self.config_get, self.inventory)
             self.eventDispatcher.add_handler(h)
 
 
@@ -141,7 +141,7 @@ class OwMaster(object):
         deviceList = []
         for devId in ids:
             # Finds existing device or creates new, if family is known
-            dev = self.inventory.find(devId)
+            dev = self.inventory.find(devId, create=True)
             if dev == None:
                 continue
 
@@ -258,7 +258,7 @@ class DeviceInventory(object):
         # nodes....
 
 
-    def find(self, idOrPath):
+    def find(self, idOrPath, create=False):
         """Find a Device object associated with the specified 1-wire ID.
         
         As the name indicates, a plain ID can be given, or a path which contains an ID.
@@ -275,6 +275,9 @@ class DeviceInventory(object):
 
         device = self.devices.get(id)
         if device == None:
+            if not create:
+                return None
+
             device = self.factory.create(id)
             if device == None:
                 # Not supported. Store False in dict

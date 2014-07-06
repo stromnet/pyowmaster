@@ -6,7 +6,7 @@ import rrdtool
 import os, time
 from os.path import abspath, exists, isdir
 
-def create(config_get):
+def create(config_get, inventory):
     return RRDOwEventHandler(config_get('rrdhandler', 'rrdpath', os.getcwd()))
 
 class RRDOwEventHandler(ThreadedOwEventHandler):
