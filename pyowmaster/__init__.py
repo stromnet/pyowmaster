@@ -93,8 +93,10 @@ class OwMaster(object):
                 break
             except OwnetError, e:
                 self.log.error("Unhandled OwnetError: %s", e, exc_info=True)
+            except ProtocolError, e:
+                self.log.error("Unhandled ProtocolError: %s", e, exc_info=True)
             except ConnError, e:
-                self.log.error("Unhandled ConnError: %s", e, exc_info=True)
+                self.log.error("Unhandled ConnError: %s", e, exc_info=False)
 
 
     def shutdown(self):
