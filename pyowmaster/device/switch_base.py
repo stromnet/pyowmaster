@@ -70,8 +70,6 @@ class OwSwitchDevice(OwDevice):
 
         self._last_sensed = None
 
-        self.alarm_source = None
-
     def config(self, config_get):
         super(OwSwitchDevice, self).config(config_get)
 
@@ -84,9 +82,9 @@ class OwSwitchDevice(OwDevice):
         self._calculate_alarm_setting()
 
     def _calculate_alarm_setting(self):
-        """Based on the alarm_source instance property and the channel modes,
-        calculate the desired alarm mode"""
-        raise Error("_calculate_alarm_setting property must be implemented by sub class")
+        """Override this and set self.wanted_alarm, this will be feed to set_alarm"""
+        self.wanted_alarm = None # silence pylint
+        raise NotImplementedError("_calculate_alarm_setting property must be implemented by sub class")
 
     def on_seen(self, timestamp):
         if self._last_sensed != None:
@@ -187,7 +185,7 @@ class OwSwitchDevice(OwDevice):
                 else:
                     self.log.debug("%s: channel %d latch change ignored", self, ch)
             else:
-                raise Error("Invalid input mode %d for channel %d" % (mode, ch))
+                raise RuntimeError("Invalid input mode %d for channel %d" % (mode, ch))
 
     def check_alarm_config(self):
         """Ensure the alarm property is configured as intended.

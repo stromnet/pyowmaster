@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 from base import OwDevice
-from switch_base import *
+from switch_base import OwSwitchDevice, MODE_ACTIVE_HIGH
 
 def register(factory):
     factory.register("12", DS2406)
@@ -28,7 +28,7 @@ ALARM_SOURCE_PIO        = 2
 ALARM_SOURCE_SENSED     = 3
 
 CH_NAMES = ['A', 'B']
-CH_IDS= {'A':0, 'B':1}
+CH_IDS = {'A':0, 'B':1}
 
 
 class DS2406(OwSwitchDevice):
@@ -68,7 +68,7 @@ class DS2406(OwSwitchDevice):
                     pol = 1 if ((self.mode[ch] & MODE_ACTIVE_HIGH) != 0) else 0
 
                     if src_pol != None and src_pol != pol:
-                        raise ConfigurationError("Cannot mix active high/low polarity when using alarm source other than latch")
+                        raise ValueError("Cannot mix active high/low polarity when using alarm source other than latch")
 
                     src_pol = pol
 

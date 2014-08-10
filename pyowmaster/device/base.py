@@ -134,8 +134,8 @@ class OwBus(OwDevice):
         return self.owDir("alarm", uncached=uncached)
 
     def on_seen(self, timestamp):
-        raise Error("Not supposed to call on_seen on OwBus")
+        raise NotImplementedError("Not supposed to call on_seen on OwBus")
 
     def on_alarm(self, timestamp):
-        raise Error("Not supposed to call on_alarm on OwBus")
+        raise NotImplementedError("Not supposed to call on_alarm on OwBus")
 

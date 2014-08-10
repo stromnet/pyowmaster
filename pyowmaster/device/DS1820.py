@@ -47,9 +47,9 @@ class DS1820(OwDevice):
         self.min_temp = config_get((self.id, 'DS1820'), 'min_temp', TEMP_MIN[self.unit])
         self.max_temp = config_get((self.id, 'DS1820'), 'max_temp', TEMP_MAX[self.unit])
 
-        self.log.debug("%s: configured with unit %s, min %.2f, max %.2f", 
+        self.log.debug("%s: configured with unit %s, min %.2f, max %.2f",
                 self, self.unit,
-                self.min_temp, 
+                self.min_temp,
                 self.max_temp)
 
     def on_seen(self, timestamp):

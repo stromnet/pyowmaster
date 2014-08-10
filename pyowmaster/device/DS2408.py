@@ -56,13 +56,13 @@ class DS2408(OwSwitchDevice):
                 # src_channel 1 for A, 2 for B, 3 for A+B. thus, bitmask
                 if src_is_latch:
                     # Interested, and it's latch. Set Selected HIGH
-                    alarm_str+="3"
+                    alarm_str += "3"
                 else:
                     # PIO as source, determine high/low polarity 
                     if ((self.mode[ch] & MODE_ACTIVE_HIGH) != 0):
-                        alarm_str+="3" # Selected HIGH
+                        alarm_str += "3" # Selected HIGH
                     else:
-                        alarm_str+="2" # Selected LOW
+                        alarm_str += "2" # Selected LOW
 
             assert self.alarm_source >= 0 and self.alarm_source <= 3, "Bad alarm_source %d" % self.alarm_source 
             assert len(alarm_str) == 9, "Bad alarm_str %s" % alarm_str

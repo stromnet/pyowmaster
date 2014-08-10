@@ -23,7 +23,6 @@ from pyownet.protocol import bytes2str,str2bytez,ConnError,OwnetError
 import device
 from device.base import OwBus
 from event.handler import OwEventDispatcher
-from event.rrdhandler import RRDOwEventHandler
 import importlib
 import time, re
 import traceback
@@ -191,7 +190,7 @@ class OwMaster(object):
 
             # Fail any unhandled variants
             if len(simultaneous.keys()) != 0:
-                raise Error("Unhandled simultaneous keys: %s" % str(simultaneous))
+                raise Exception("Unhandled simultaneous keys: %s" % str(simultaneous))
 
         # End of scan method
 
