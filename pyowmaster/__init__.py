@@ -19,7 +19,7 @@
 #
 
 from __future__ import print_function
-from pyownet.protocol import bytes2str,str2bytez,ConnError,OwnetError
+from pyownet.protocol import bytes2str,str2bytez,ConnError,OwnetError,ProtocolError
 import device
 from device.base import OwBus
 from event.handler import OwEventDispatcher
