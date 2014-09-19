@@ -30,6 +30,8 @@ import logging
 import prisched
 
 __version__ = '0.0.0'
+SCAN_FULL = 0
+SCAN_ALARM = 1
 
 class OwMaster(object):
     """Init a new OwMaster instance with the given pyownet OwnetProxy
@@ -49,7 +51,7 @@ class OwMaster(object):
     def _setup(self):
         # Create a scheduler where we queue our tasks
         self.scheduler = prisched.scheduler()
-        
+
         # use two queues, prio order is always earlier created
         self.queueHighPrio = self.scheduler.createQueue().enter
         self.queueLowPrio = self.scheduler.createQueue().enter
@@ -65,22 +67,26 @@ class OwMaster(object):
         # Load handler modules
         self.load_handlers()
 
-        self.lastFullScan = 0
-        self.lastAlarmScan = 0
+        # Key'ed SCAN_FULL(0) and SCAN_ALARM(1)
+        self.lastScan = [0, 0]
+        self.scanInterval = [
+                self.config_get('owmaster', 'scan_interval', 30),
+                self.config_get('owmaster', 'alarm_scan_interval', 1.0)
+            ]
+        self.scanQueue = [self.queueLowPrio, self.queueHighPrio]
 
-        self.fullScanInterval = self.config_get('owmaster', 'scan_interval', 30)
-        self.alarmScanInterval = self.config_get('owmaster', 'alarm_scan_interval', 1.0)
+        self.scanConnErrs = 0
 
-        self.log.debug("Configured for scanning every %.2fs, alarm scanning every %.1fs",\
-                self.fullScanInterval,\
-                self.alarmScanInterval)
+        self.log.debug("Configured for scanning every %.2fs, alarm scanning every %.1fs",
+                self.scanInterval[SCAN_FULL],
+                self.scanInterval[SCAN_ALARM])
 
     def _mainloop(self):
         self.simultaneousTemperaturePending = False
 
         # These initial scans will enqueue jobs to the scheduler
-        self.scanFull()
-        self.scanAlarm()
+        self.scan(SCAN_FULL)
+        self.scan(SCAN_ALARM)
 
         while True:
             try:
@@ -119,25 +125,20 @@ class OwMaster(object):
             self.eventDispatcher.add_handler(h)
 
 
-    def scanFull(self):
+    def scan(self, scan_mode):
+        backoff = 0
         try:
-            self.scan(False)
-            self.lastFullScan = time.time()
+            self._scan(scan_mode == SCAN_ALARM)
+            self.lastScan[scan_mode] = time.time()
+            self.scanConnErrs = 0
         except ConnError, e:
-            self.log.error("Connection error while executing main loop. Waiting and retrying", exc_info=True)
+            self.log.error("Connection error while executing main loop. Waiting and retrying")
+            self.scanConnErrs+=1
+            backoff = max((self.scanConnErrs * 2) + 1, 20)
 
-        self.queueLowPrio(self.fullScanInterval, self.scanFull, [])
+        self.scanQueue[scan_mode](self.scanInterval[scan_mode] + backoff, self.scan, [scan_mode])
 
-    def scanAlarm(self):
-        try:
-            self.scan(True)
-            self.lastAlarmScan = time.time()
-        except ConnError, e:
-            self.log.error("Connection error while executing main loop. Waiting and retrying", exc_info=True)
-
-        self.queueHighPrio(self.alarmScanInterval, self.scanAlarm, [])
-
-    def scan(self, alarmMode):
+    def _scan(self, alarmMode):
         try:
             if alarmMode:
                 ids = self.bus.owDirAlarm(uncached=True)
@@ -145,7 +146,7 @@ class OwMaster(object):
                 ids = self.bus.owDir(uncached=True)
         except OwnetError, e:
             self.log.error("Bus scan failed: %s",e)
-            return 
+            return
 
         timestamp = time.time()
 #        self.log.debug("%s scan executed in %.2fms", \
@@ -164,7 +165,7 @@ class OwMaster(object):
             # Find "lost" devices
             missing = self.inventory.list(skipList = deviceList)
             if missing:
-                self.log.warn("Missing devices: %s", ', '.join(map(str,missing)))
+                self.log.warn("Missing %d (of %d) devices: %s", len(missing), len(deviceList), ', '.join(map(str,missing)))
             # TODO: Handle some way
 
         simultaneous = {}
@@ -273,14 +274,14 @@ class DeviceInventory(object):
 
     def find(self, idOrPath, create=False):
         """Find a Device object associated with the specified 1-wire ID.
-        
+ 
         As the name indicates, a plain ID can be given, or a path which contains an ID.
         If the devices is not found, it is created.
         """
         id = idFromPath(idOrPath)
         if not id:
             # Invalid ID, could be an alias
-            # XXX: If any device has an alias, we will miss it. 
+            # XXX: If any device has an alias, we will miss it.
             # There is a bug in OWFS, it returns aliased names even if we ask it not to:
             # https://sourceforge.net/p/owfs/bugs/60/
             # Until fixed, do not use alias.
@@ -307,7 +308,7 @@ class DeviceInventory(object):
         return device
 
     def list(self, skipList=None):
-        """Return a list of all known devices. 
+        """Return a list of all known devices.
 
         If skipList is set, we skip all devices in that list"""
         out = []
@@ -339,7 +340,6 @@ def idFromPath(idOrPath):
     return str(m.group(1))
 
 
-    
 def selftest():
     assert idFromPath('10.CB310B000800') == '10.CB310B000800'
     assert idFromPath('/10.CB310B000800') == '10.CB310B000800'
