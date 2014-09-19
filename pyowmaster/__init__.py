@@ -130,11 +130,14 @@ class OwMaster(object):
         try:
             self._scan(scan_mode == SCAN_ALARM)
             self.lastScan[scan_mode] = time.time()
+            if self.scanConnErrs > 0:
+                self.log.info("Connection back online")
+
             self.scanConnErrs = 0
         except ConnError, e:
-            self.log.error("Connection error while executing main loop. Waiting and retrying")
             self.scanConnErrs+=1
-            backoff = max((self.scanConnErrs * 2) + 1, 20)
+            backoff = min((self.scanConnErrs * 2) + 1, 20)
+            self.log.error("Connection error while executing main loop. Waiting %ds and retrying", backoff)
 
         self.scanQueue[scan_mode](self.scanInterval[scan_mode] + backoff, self.scan, [scan_mode])
 

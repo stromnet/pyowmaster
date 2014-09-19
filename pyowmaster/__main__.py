@@ -18,6 +18,7 @@
 #
 import logging
 import ConfigParser, sys
+import time
 
 from pyownet.protocol import *
 from . import OwMaster
@@ -80,6 +81,8 @@ def main(cfgfile=None, config_get_fn=None, configure_logging=True):
     if configure_logging:
         setup_logging(config_get('owmaster', 'logfile', 'owmaster.log'))
 
+    log = logging.getLogger(__name__)
+
     try:
         owm = None
         flags = 0
@@ -92,7 +95,17 @@ def main(cfgfile=None, config_get_fn=None, configure_logging=True):
         #flags| = FLG_PERSISTENCE
 
         ow_port = config_get('owmaster', 'owserver_port', 4304)
-        owm = OwMaster(OwnetProxy(port=ow_port,verbose=False, flags=flags), config_get_fn)
+        tries = 0
+        while True:
+            try:
+                owm = OwMaster(OwnetProxy(port=ow_port,verbose=False, flags=flags), config_get_fn)
+                break
+            except ConnError, e:
+                tries+=1
+                backoff = min((tries * 2) + 1, 60)
+                log.warn("Failed initial connect to owserver on port %d, retrying in %ds: %s", ow_port, backoff, e)
+                time.sleep(backoff)
+
         owm.main()
     finally:
         if owm:
