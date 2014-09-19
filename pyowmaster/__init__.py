@@ -339,13 +339,3 @@ def idFromPath(idOrPath):
 
     return str(m.group(1))
 
-
-def selftest():
-    assert idFromPath('10.CB310B000800') == '10.CB310B000800'
-    assert idFromPath('/10.CB310B000800') == '10.CB310B000800'
-    assert idFromPath('/uncached/10.CB310B000800') == '10.CB310B000800'
-    assert idFromPath('/uncached/10.CB310B000800/temperature') == '10.CB310B000800'
-    assert idFromPath('/uncached/alarm/10.CB310B000800') == '10.CB310B000800'
-
-selftest()
-
