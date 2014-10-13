@@ -31,7 +31,7 @@ def setup_logging(logfile):
 
     fh = logging.FileHandler(logfile, 'a')
     fh.setFormatter(logging.Formatter(fmt, None))
-    fh.setLevel(logging.INFO)
+    fh.setLevel(logging.DEBUG)
     logging.Logger.root.addHandler(fh)
 
 

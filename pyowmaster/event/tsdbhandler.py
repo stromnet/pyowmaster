@@ -55,16 +55,21 @@ class OpenTSDBEventHandler(ThreadedOwEventHandler):
         elif isinstance(event, OwCounterEvent):
             valueFmt = "%d"
             type_value = "counter"
+        elif isinstance(event, OwStatisticsEvent):
+            valueFmt = "%d"
+            type_value = "stats_%s" % event.category
         else:
             return
 
-        cmd = ("put %s %d "+valueFmt+" %s=%s %s=%s") % (
+        cmd = ("put %s %d "+valueFmt+" %s=%s") % (
                 self.metric_name,
                 event.timestamp,
                 event.value,
-                self.sensor_key, event.deviceId.id,
                 self.type_key, type_value
                 )
+
+        if event.deviceId.id:
+            cmd+=" %s=%s" % (self.sensor_key, event.deviceId.id)
 
         if self.alias_key and event.deviceId.alias:
             cmd += " %s=%s" % (self.alias_key,  event.deviceId.alias)

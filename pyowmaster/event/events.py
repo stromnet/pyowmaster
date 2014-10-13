@@ -44,7 +44,20 @@ class OwTemperatureEvent(OwEventBase):
         self.unit = unit
 
     def __str__(self):
-        return "OwTemperatureEvent[%s, %.2f %s]" % (self.deviceId, self.value, self.unit)
+        return "OwTemperatureEvent[%d: %s, %.2f %s]" % (self.timestamp, self.deviceId, self.value, self.unit)
+
+class OwStatisticsEvent(OwEventBase):
+    CATEOGORY_ERROR = "error"
+    CATEOGORY_READ_TRIES = "read_tries"
+    """Describes an statistics reading"""
+    def __init__(self, timestamp, category, name, value):
+        super(OwStatisticsEvent, self).__init__(timestamp)
+        self.name = name
+        self.category = category
+        self.value = value
+
+    def __str__(self):
+        return "OwStatisticsEvent[%d: %s %s, %d]" % (self.timestamp, self.category, self.name, self.value)
 
 class OwSwitchEvent(OwEventBase):
     """Describes an event which has occured on the specified OwDevice ID/channel.

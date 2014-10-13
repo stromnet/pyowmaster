@@ -22,6 +22,7 @@ from __future__ import print_function
 from pyownet.protocol import bytes2str,str2bytez,ConnError,OwnetError,ProtocolError
 import device
 from device.base import OwBus
+from device.stats import OwStatistics
 from event.handler import OwEventDispatcher
 import importlib
 import time, re
@@ -58,7 +59,9 @@ class OwMaster(object):
 
         # Init bus object, event dispatcher
         self.bus = OwBus(self.ow)
+        self.owstats = OwStatistics(self.ow)
         self.eventDispatcher = OwEventDispatcher()
+        self.owstats.init(self.eventDispatcher)
 
         # Init a factory, and then an associated inventory
         self.factory = DeviceFactory(self.ow, self.eventDispatcher, self.config_get)
@@ -203,6 +206,10 @@ class OwMaster(object):
             # Fail any unhandled variants
             if len(simultaneous.keys()) != 0:
                 raise Exception("Unhandled simultaneous keys: %s" % str(simultaneous))
+
+        if not alarmMode:
+            # Read bus statistics
+            self.owstats.on_seen(timestamp)
 
         # End of scan method
 

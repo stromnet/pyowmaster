@@ -105,7 +105,9 @@ class OwDevice(object):
         return data
 
     def emitEvent(self, event):
-        event.deviceId = self.deviceId
+        if not event.deviceId:
+            event.deviceId = self.deviceId
+
         self.eventDispatcher.handle_event(event)
 
     def storeIoStatistic(self, stats):
