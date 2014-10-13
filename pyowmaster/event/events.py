@@ -48,7 +48,7 @@ class OwTemperatureEvent(OwEventBase):
 
 class OwStatisticsEvent(OwEventBase):
     CATEOGORY_ERROR = "error"
-    CATEOGORY_READ_TRIES = "read_tries"
+    CATEOGORY_TRIES = "tries"
     """Describes an statistics reading"""
     def __init__(self, timestamp, category, name, value):
         super(OwStatisticsEvent, self).__init__(timestamp)
