@@ -218,26 +218,27 @@ class OwMaster(object):
         If any device is NOT powered, it will execute a regular convert right befor reading.
         """
         if self.simultaneousTemperaturePending:
-            self.log.debug("Skipping simultanous temperature; already pending")
-            return
+            raise Exception("Simultanous temperature convert already pending")
+#            self.log.warn("Skipping simultanous temperature; already pending")
+#            return
 
         self.simultaneousTemperaturePending = True
 
         # Execute conversion. this returns immediately
         self.bus.owWrite('simultaneous/temperature', '1')
+        convert_start_ts = time.time()
         self.simultaneousTemperaturePending = time.time()
         self.log.debug("Simultaneous temperature executed in %.2fms", self.bus.lastIoStats.time*1000)
 
         # Wait 1000ms before actually reading the scratchpads
-        self.queueLowPrio(1.0, self._simultaneousTemperatureRead, [devices])
+        self.queueLowPrio(1.0, self._simultaneousTemperatureRead, [devices, convert_start_ts])
 
-    def _simultaneousTemperatureRead(self, devices):
+    def _simultaneousTemperatureRead(self, devices, convert_start_ts):
         """Reads a list of temperature sensors after simultaneous conversion is estimated to have finished"""
-        self.log.debug("Simult ready, reading")
-        timestamp = self.simultaneousTemperaturePending
+        self.log.debug("Simultaneous temperature convert ready, reading")
         self.simultaneousTemperaturePending = False
         for dev in devices:
-            self.queueLowPrio(0, dev.read_temperature, [timestamp])
+            self.queueLowPrio(0, dev.read_temperature, [convert_start_ts])
 
 
 

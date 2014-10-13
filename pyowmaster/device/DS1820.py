@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
+import time
 from base import OwDevice
 from ..event.events import OwTemperatureEvent
 
@@ -72,8 +73,9 @@ class DS1820(OwDevice):
             self.last = temp
 
         self.emitEvent(OwTemperatureEvent(timestamp, temp, self.unit))
-        #self.log.debug("%s: Temp read in %.2fms -> Temp: %.3f (prev %.3f, diff %.3f)", \
-        #        self, self.lastIoStats.time*1000, temp, self.last, self.last-temp)
+#        self.log.debug("%s: Temp read in %.2fms -> Temp: %.3f (prev %.3f, diff %.3f), read @ %d, now=%d", \
+#                self, self.lastIoStats.time*1000, temp, self.last, self.last-temp,
+#                timestamp, time.time())
 
         self.last = temp
 

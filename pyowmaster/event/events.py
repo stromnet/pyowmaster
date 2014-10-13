@@ -24,7 +24,7 @@ class OwEventBase(object):
         self.deviceId = None
 
     def __str__(self):
-        return "OwEvent[%s, unknown]" % (self.deviceId)
+        return "OwEvent[%d: %s, unknown]" % (self.timestamp, self.deviceId)
 
 class OwCounterEvent(OwEventBase):
     """Describes an counter reading"""
@@ -34,7 +34,7 @@ class OwCounterEvent(OwEventBase):
         self.value = value
 
     def __str__(self):
-        return "OwCounterEvent[%s, ch %s, %d]" % (self.deviceId, self.channel, self.value)
+        return "OwCounterEvent[%d: %s, ch %s, %d]" % (self.timestamp, self.deviceId, self.channel, self.value)
 
 class OwTemperatureEvent(OwEventBase):
     """Describes an temperature reading"""
@@ -64,7 +64,7 @@ class OwSwitchEvent(OwEventBase):
         self.value = value
 
     def __str__(self):
-        return "OwSwitchEvent[%s, ch %s, %s]" % (self.deviceId, self.channel, self.value)
+        return "OwSwitchEvent[%d, %s, ch %s, %s]" % (self.timestamp, self.deviceId, self.channel, self.value)
 
 
 
