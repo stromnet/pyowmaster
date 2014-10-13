@@ -156,7 +156,14 @@ class OwMaster(object):
 #                "Alarm" if alarmMode else "Bus", self.bus.lastIoStats.time*1000)
 
         deviceList = []
+        uniqueDevices = set()
         for devId in ids:
+            if devId in uniqueDevices:
+                self.log.warn("Duplicate device ID in scan: %s" % devId)
+                continue
+
+            uniqueDevices.add(devId)
+
             # Finds existing device or creates new, if family is known
             dev = self.inventory.find(devId, create=True)
             if dev == None:
@@ -170,6 +177,7 @@ class OwMaster(object):
             if missing:
                 self.log.warn("Missing %d (of %d) devices: %s", len(missing), len(deviceList), ', '.join(map(str,missing)))
             # TODO: Handle some way
+
 
         simultaneous = {}
         for dev in deviceList:
