@@ -57,6 +57,9 @@ class RRDOwEventHandler(ThreadedOwEventHandler):
         elif isinstance(event, OwCounterEvent):
             rrdfile = "%s%s-%s.rrd" % (self.rrdpath, event.deviceId.id, event.channel)
             dsType = "COUNTER"
+        elif isinstance(event, OwStatisticsEvent):
+            rrdfile = "%s%s-%s.rrd" % (self.rrdpath, event.category, event.deviceId.alias)
+            dsType = "COUNTER"
         else:
             return
 
