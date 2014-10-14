@@ -68,6 +68,7 @@ class OwSwitchDevice(OwDevice):
     def __init__(self, ow, id):
         super(OwSwitchDevice, self).__init__(ow, id)
 
+        self.inital_setup_done = False
         self._last_sensed = None
 
     def config(self, config_get):
@@ -87,14 +88,14 @@ class OwSwitchDevice(OwDevice):
         raise NotImplementedError("_calculate_alarm_setting property must be implemented by sub class")
 
     def on_seen(self, timestamp):
+        # We have nothing to do here; we are only using alarm
+        # However, ensure proper config..
+        self.check_alarm_config()
+
         if self._last_sensed != None:
             # xXX: If already read, skip re-read... When is this
             # required? On re-start?
             return
-
-        # We have nothing to do here; we are only using alarm
-        # However, ensure proper config..
-        self.check_alarm_config()
 
         # refresh sensed; mainly for startup
         sensed = int(self.owReadStr('sensed.BYTE', uncached=True))
@@ -193,10 +194,13 @@ class OwSwitchDevice(OwDevice):
         alarm = self.owReadStr('set_alarm', uncached=True)
 
         if alarm != self.wanted_alarm:
-            self.log.info("%s: reconfiguring alarm from %s to %s", self, alarm, self.wanted_alarm)
+            self.log.log((logging.WARNING if self.inital_setup_done else logging.INFO), "%s: reconfiguring alarm from %s to %s", self, alarm, self.wanted_alarm)
+
             self.owWrite('set_alarm', self.wanted_alarm)
+
             return True
         
+        self.inital_setup_done = True
         return False
 
     def set_output(self, channel, value):
