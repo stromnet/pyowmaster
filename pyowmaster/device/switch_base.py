@@ -198,6 +198,8 @@ class OwSwitchDevice(OwDevice):
             self.log.log((logging.WARNING if self.inital_setup_done else logging.INFO), "%s: reconfiguring alarm from %s to %s", self, alarm, self.wanted_alarm)
 
             self.owWrite('set_alarm', self.wanted_alarm)
+            # And clear any alarm if already set
+            self.owWrite('latch.BYTE', '1')
 
             return True
         
