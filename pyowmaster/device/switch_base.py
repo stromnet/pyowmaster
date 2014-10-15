@@ -18,6 +18,7 @@
 from base import OwDevice
 from ..event.events import OwSwitchEvent
 from collections import namedtuple
+import logging
 
 # Modes of operation, per channel
 MODE_OUTPUT             = 0b00001
