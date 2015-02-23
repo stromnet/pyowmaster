@@ -141,8 +141,8 @@ class OwMaster(object):
             self.scanConnErrs+=1
             backoff = min((self.scanConnErrs * 2) + 1, 20)
             self.log.error("Connection error while executing main loop. Waiting %ds and retrying", backoff)
-
-        self.scanQueue[scan_mode](self.scanInterval[scan_mode] + backoff, self.scan, [scan_mode])
+        finally:
+            self.scanQueue[scan_mode](self.scanInterval[scan_mode] + backoff, self.scan, [scan_mode])
 
     def _scan(self, alarmMode):
         try:
@@ -178,7 +178,7 @@ class OwMaster(object):
             # Find "lost" devices
             missing = self.inventory.list(skipList = deviceList)
             if missing:
-                self.log.warn("Missing %d (of %d) devices: %s", len(missing), len(deviceList), ', '.join(map(str,missing)))
+                self.log.warn("Missing %d (of %d) devices: %s", len(missing), self.inventory.size(), ', '.join(map(str,missing)))
             # TODO: Handle some way
 
 
@@ -345,6 +345,9 @@ class DeviceInventory(object):
                 out.append(dev)
 
         return out
+
+    def size(self):
+        return len(self.devices)
 
 
 
