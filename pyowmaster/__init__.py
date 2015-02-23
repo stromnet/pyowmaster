@@ -1,5 +1,5 @@
-"""pyowmaster implements a 1-Wire master, where the main focus is on providing low-latency input support"""
 # vim: set expandtab sw=4 softtabstop=4 fileencoding=utf8 :
+"""pyowmaster implements a 1-Wire master, where the main focus is on providing low-latency input support"""
 
 #
 # Copyright 2014 Johan Ström
