@@ -17,7 +17,7 @@
 #
 from handler import ThreadedOwEventHandler
 from events import *
-import subprocess, re
+import subprocess, re, os
 
 def create(config_get, inventory):
     return CommandEventHandler(config_get, inventory)
@@ -42,7 +42,7 @@ class CommandEventHandler(ThreadedOwEventHandler):
         elif event.value == OwSwitchEvent.TRIGGED:
             cmd_key = 'command.ch.%s.trigged' % event.channel
 
-        self.log.debug("Looking for command for %s", cmd_key)
+        self.log.debug("Looking for command for %s for %s", cmd_key, event.deviceId.id)
         cmd = self.config_get(event.deviceId.id, cmd_key, None)
         if not cmd:
             return
@@ -57,14 +57,16 @@ class CommandEventHandler(ThreadedOwEventHandler):
                 # Blindly execute command
                 cmd = cmd[6:]
                 self.log.info("Executing command %s", cmd)
-                output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)
+                fnull = open(os.devnull, 'w')
+                output = subprocess.check_output(cmd, stdin=fnull, stderr=subprocess.STDOUT, shell=True)
+                fnull.close()
                 self.log.debug("Command output: %s", output)
             else:
                 m = RE_DEV_CMD.match(cmd)
                 if not m:
                     raise Exception("Illegal command %s" % cmd)
         
-                self.log.info("Executing command %s", cmd)
+                self.log.info("Executing internal command %s", cmd)
                 # Find device
                 devId = m.group(1)
                 ch = m.group(2)
