@@ -68,11 +68,14 @@ class OpenTSDBEventHandler(ThreadedOwEventHandler):
                 self.type_key, type_value
                 )
 
-        if event.deviceId.id:
+        if event.deviceId and event.deviceId.id:
             cmd+=" %s=%s" % (self.sensor_key, event.deviceId.id)
 
-        if self.alias_key and event.deviceId.alias:
-            cmd += " %s=%s" % (self.alias_key,  event.deviceId.alias)
+        if self.alias_key:
+            if isinstance(event, OwStatisticsEvent):
+                cmd += " %s=%s" % (self.alias_key,  event.name)
+            elif event.deviceId.alias:
+                cmd += " %s=%s" % (self.alias_key,  event.deviceId.alias)
 
         if hasattr(event, 'channel'):
             cmd += " %s=%s" % (self.channel_key, event.channel)

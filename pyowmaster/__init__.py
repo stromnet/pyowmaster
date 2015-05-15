@@ -22,7 +22,7 @@ from __future__ import print_function
 from pyownet.protocol import bytes2str,str2bytez,ConnError,OwnetError,ProtocolError
 import device
 from device.base import OwBus
-from device.stats import OwStatistics
+from device.stats import OwStatistics, OwStatisticsEvent
 from event.handler import OwEventDispatcher
 import importlib
 import time, re
@@ -57,14 +57,23 @@ class OwMaster(object):
         self.queueHighPrio = self.scheduler.createQueue().enter
         self.queueLowPrio = self.scheduler.createQueue().enter
 
-        # Init bus object, event dispatcher
-        self.bus = OwBus(self.ow)
-        self.owstats = OwStatistics(self.ow)
+        # Dispatcher for any events (counters, temp readings, switch changes etc)
         self.eventDispatcher = OwEventDispatcher()
-        self.owstats.init(self.eventDispatcher)
+
+        # Init our own statistics tracker
+        self.stats = MasterStatistics(self.queueLowPrio, self.eventDispatcher,
+                self.config_get('owmaster', 'stats_report_interval', 60))
+
+        # Init bus object
+        self.bus = OwBus(self.ow)
+        self.bus.init(self.eventDispatcher, self.stats)
+
+        # Init pseudo-device fetching statistics from OWFS
+        self.owstats = OwStatistics(self.ow)
+        self.owstats.init(self.eventDispatcher, self.stats)
 
         # Init a factory, and then an associated inventory
-        self.factory = DeviceFactory(self.ow, self.eventDispatcher, self.config_get)
+        self.factory = DeviceFactory(self.ow, self.eventDispatcher, self.stats, self.config_get)
         self.inventory = DeviceInventory(self.factory)
 
         # Load handler modules
@@ -147,8 +156,10 @@ class OwMaster(object):
     def _scan(self, alarmMode):
         try:
             if alarmMode:
+                self.stats.increment('tries.alarm_scan')
                 ids = self.bus.owDirAlarm(uncached=True)
             else:
+                self.stats.increment('tries.full_scan')
                 ids = self.bus.owDir(uncached=True)
         except OwnetError, e:
             self.log.error("Bus scan failed: %s",e)
@@ -163,6 +174,7 @@ class OwMaster(object):
         for devId in ids:
             if devId in uniqueDevices:
                 self.log.warn("Duplicate device ID in scan: %s" % devId)
+                self.stats.increment('error.scan_duplicate')
                 continue
 
             uniqueDevices.add(devId)
@@ -179,8 +191,11 @@ class OwMaster(object):
             missing = self.inventory.list(skipList = deviceList)
             if missing:
                 self.log.warn("Missing %d (of %d) devices: %s", len(missing), self.inventory.size(), ', '.join(map(str,missing)))
-            # TODO: Handle some way
+                self.stats.increment('error.lost_devices', len(missing))
 
+            # TODO: Handle some way
+        else:
+            self.stats.increment('bus.device_count', len(deviceList))
 
         simultaneous = {}
         for dev in deviceList:
@@ -208,7 +223,7 @@ class OwMaster(object):
                 raise Exception("Unhandled simultaneous keys: %s" % str(simultaneous))
 
         if not alarmMode:
-            # Read bus statistics
+            # Read bus statistics through pseudo-devoce
             self.owstats.on_seen(timestamp)
 
         # End of scan method
@@ -251,11 +266,12 @@ class OwMaster(object):
 
 
 class DeviceFactory(object):
-    def __init__(self, owNetProxy, eventDispatcher, config_get):
+    def __init__(self, owNetProxy, eventDispatcher, stats, config_get):
         self.log = logging.getLogger(type(self).__name__)
         self.ow = owNetProxy
         self.deviceTypes = {}
         self.eventDispatcher = eventDispatcher
+        self.stats = stats
         self.config_get = config_get
 
         # Register known device classes
@@ -275,7 +291,7 @@ class DeviceFactory(object):
             return None
 
         dev = devType(self.ow, id)
-        dev.init(self.eventDispatcher)
+        dev.init(self.eventDispatcher, self.stats)
         dev.config(self.config_get)
         return dev
 
@@ -293,7 +309,7 @@ class DeviceInventory(object):
 
     def find(self, idOrPath, create=False):
         """Find a Device object associated with the specified 1-wire ID.
- 
+
         As the name indicates, a plain ID can be given, or a path which contains an ID.
         If the devices is not found, it is created.
         """
@@ -349,6 +365,51 @@ class DeviceInventory(object):
     def size(self):
         return len(self.devices)
 
+
+class MasterStatistics:
+    def __init__(self, queue, eventDispatcher, reportInterval=60):
+        self.log = logging.getLogger(type(self).__name__)
+        self.counters = {}
+        self.queue = queue
+        self.eventDispatcher = eventDispatcher
+        self.reportInterval = reportInterval
+        self.queue(self.reportInterval, self.report)
+
+    def init(self, key):
+        """Initialize a counter key to be reported even if no increment is ever made.
+
+        Init is not necessary, but if .increment is never called, it will never
+        be reported if not inited.
+        """
+        self.increment(key, 0)
+
+    def increment(self, key, value=1):
+        """Increment a statistics counter by 1, or more.
+
+        The key shall be in the format "<counter>.<key>", and if has not been
+        used before it will be pre-inited to 0 before incrementing it.
+        """
+        if key not in self.counters:
+            if '.' not in key:
+                raise Error("Statistics key should have the format <category>.<name>")
+
+            self.counters[key] = 0
+
+#        self.log.debug("Incrementing %s with %.3f", key, value)
+        self.counters[key] += value
+
+    def report(self):
+        """Report all tracked values"""
+        self.log.debug("Reporting statistics")
+        timestamp = time.time()
+        for key in self.counters:
+            (category, name) = key.split('.')
+            value = self.counters[key]
+
+            ev = OwStatisticsEvent(timestamp, category, name, value)
+            self.eventDispatcher.handle_event(ev)
+
+        self.queue(self.reportInterval, self.report)
 
 
 RE_DEV_ID = re.compile('([A-F0-9][A-F0-9]\.[A-F0-9]{12})')

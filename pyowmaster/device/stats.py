@@ -46,8 +46,7 @@ class OwStatistics(OwDevice):
             value = int(data)
 
             ev = OwStatisticsEvent(timestamp, OwStatisticsEvent.CATEOGORY_ERROR, e, value)
-            ev.deviceId = DeviceId(None, ev.name)
-            self.emitEvent(ev)
+            self.emitEvent(ev, True)
 
         for e in TRIES:
             if e == 'read_tries':
@@ -63,11 +62,9 @@ class OwStatistics(OwDevice):
                     value = int(read_tries[n])
 
                     ev = OwStatisticsEvent(timestamp, OwStatisticsEvent.CATEOGORY_TRIES, '%s_%d' % (e, n+1), value)
-                    ev.deviceId = DeviceId(None, ev.name)
-                    self.emitEvent(ev)
+                    self.emitEvent(ev, True)
 
             else:
                 value = int(data)
                 ev = OwStatisticsEvent(timestamp, OwStatisticsEvent.CATEOGORY_TRIES, e, value)
-                ev.deviceId = DeviceId(None, ev.name)
-                self.emitEvent(ev)
+                self.emitEvent(ev, True)

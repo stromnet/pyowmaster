@@ -20,10 +20,11 @@ from time import time
 import logging
 from collections import namedtuple
 
-OwIoStatistic = namedtuple('OwIoStatistic', 'id operation uncached time')
+OwIoStatistic = namedtuple('OwIoStatistic', 'id operation uncached path time')
 OwIoStatistic.OP_READ=1
 OwIoStatistic.OP_WRITE=2
 OwIoStatistic.OP_DIR=3
+OwIoStatistic.OPS = [0, 'read', 'write', 'dir']
 
 DeviceId = namedtuple('DeviceId', 'id alias')
 
@@ -38,8 +39,9 @@ class OwDevice(object):
         self.pathUncached = '/uncached/%s/' % self.id
         self.simultaneous = None
 
-    def init(self, eventDispatcher):
+    def init(self, eventDispatcher, stats):
         self.eventDispatcher = eventDispatcher
+        self.stats = stats
 
     def config(self, config_get):
         """Configure this device from config file.
@@ -61,7 +63,7 @@ class OwDevice(object):
         raw = self.ow.read(path + subPath)
         tE = time()
 
-        self.storeIoStatistic(OwIoStatistic(self.id, OwIoStatistic.OP_READ, uncached, tE-tS))
+        self.storeIoStatistic(OwIoStatistic(self.id, OwIoStatistic.OP_READ, uncached, subPath, tE-tS))
 
         return raw
 
@@ -77,7 +79,7 @@ class OwDevice(object):
         raw = self.ow.write(path + subPath, data)
         tE = time()
 
-        self.storeIoStatistic(OwIoStatistic(self.id, OwIoStatistic.OP_WRITE, False, tE-tS))
+        self.storeIoStatistic(OwIoStatistic(self.id, OwIoStatistic.OP_WRITE, False, subPath, tE-tS))
 
         return data
 
@@ -91,10 +93,10 @@ class OwDevice(object):
         entries = self.ow.dir(path + subPath)
         tE = time()
 
-        self.storeIoStatistic(OwIoStatistic(self.id, OwIoStatistic.OP_DIR, uncached, tE-tS))
+        self.storeIoStatistic(OwIoStatistic(self.id, OwIoStatistic.OP_DIR, uncached, subPath, tE-tS))
 
         return entries
-        
+
     def owReadStr(self, subPath, uncached=False, strip=True):
         raw = self.owRead(subPath, uncached=uncached)
 
@@ -104,15 +106,22 @@ class OwDevice(object):
 
         return data
 
-    def emitEvent(self, event):
-        if not event.deviceId:
+    def emitEvent(self, event, skipDeviceId=False):
+        if not event.deviceId and not skipDeviceId:
             event.deviceId = self.deviceId
 
         self.eventDispatcher.handle_event(event)
 
     def storeIoStatistic(self, stats):
-        # just track the last one..
+        # Keep last for external access
         self.lastIoStats = stats
+
+        # Track
+        self.stats.increment('ops.count_' + OwIoStatistic.OPS[stats.operation], stats.time*1000.0)
+        self.stats.increment('ops.ms_' + OwIoStatistic.OPS[stats.operation], stats.time*1000.0)
+
+        if stats.time > (1 if stats.operation != OwIoStatistic.OP_DIR else 2):
+            self.log.warn("%s: %s %s took %.2fs", stats.id, OwIoStatistic.OPS[stats.operation], stats.path, stats.time)
 
 
     def on_seen(self, timestamp):
@@ -128,7 +137,7 @@ class OwDevice(object):
 class OwBus(OwDevice):
     """Implements a Ow Bus as a OwDevice to keep some statistics and helpers."""
     def __init__(self, ow):
-       super(OwBus, self).__init__(ow, None)
+       super(OwBus, self).__init__(ow, '00.000000000000')
        self.path = "/"
        self.pathUncached = "/uncached/"
 
