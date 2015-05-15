@@ -141,7 +141,7 @@ class Queue(object):
         heapq.heappush(self._queue, event)
         return event # The ID
 
-    def enter(self, delay, action, argument):
+    def enter(self, delay, action, argument=[]):
         """A variant that specifies the time as a relative time.
 
         This is actually the more commonly used interface.
