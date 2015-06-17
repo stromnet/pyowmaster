@@ -146,12 +146,21 @@ class OwMaster(object):
                 self.log.info("Connection back online")
 
             self.scanConnErrs = 0
+
+            # In normal cases, try to read stats every normal scan
+            # This is done outside of scan method, in case bus scan fails for
+            # other reasons (but still returns OK; possible)
+            if scan_mode != SCAN_ALARM:
+                # Read bus statistics through pseudo-devoce
+                self.owstats.on_seen(time.time())
+
         except ConnError, e:
             self.scanConnErrs+=1
             backoff = min((self.scanConnErrs * 2) + 1, 20)
             self.log.error("Connection error while executing main loop. Waiting %ds and retrying", backoff)
         finally:
             self.scanQueue[scan_mode](self.scanInterval[scan_mode] + backoff, self.scan, [scan_mode])
+
 
     def _scan(self, alarmMode):
         try:
@@ -221,10 +230,6 @@ class OwMaster(object):
             # Fail any unhandled variants
             if len(simultaneous.keys()) != 0:
                 raise Exception("Unhandled simultaneous keys: %s" % str(simultaneous))
-
-        if not alarmMode:
-            # Read bus statistics through pseudo-devoce
-            self.owstats.on_seen(timestamp)
 
         # End of scan method
 
