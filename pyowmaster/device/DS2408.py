@@ -30,7 +30,7 @@ ALARM_SOURCE_LATCH_AND  = 3
 
 class DS2408(OwSwitchDevice):
     def __init__(self, ow, id):
-        super(DS2408, self).__init__(ow, id)
+        super(DS2408, self).__init__(True, ow, id)
 
         self.channels = 8
 

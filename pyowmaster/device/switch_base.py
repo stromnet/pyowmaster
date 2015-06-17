@@ -66,9 +66,11 @@ class OwSwitchDevice(OwDevice):
         - Method _calculate_alarm_setting
         - Method _on_alarm_handled
     """
-    def __init__(self, ow, id):
+    def __init__(self, _alarm_supported, ow, id):
+        """Subclass should set the _alarm_supported flag acordingly"""
         super(OwSwitchDevice, self).__init__(ow, id)
 
+        self.alarm_supported = _alarm_supported
         self.inital_setup_done = False
         self._last_sensed = None
 
@@ -79,9 +81,19 @@ class OwSwitchDevice(OwDevice):
         for ch in range(self.channels):
             chname = str(self._ch_translate(ch))
             cfg = parse_switch_config(config_get(self.id, "ch." + chname, 'input momentary'))
+#            self.log.debug("Ch %s configured as %d", chname, cfg)
             self.mode.append(cfg)
 
-        self._calculate_alarm_setting()
+        if self.alarm_supported:
+            self._calculate_alarm_setting()
+
+            # Apply alarm config directly
+            self.check_alarm_config()
+        else:
+            for m in self.mode:
+                if (m & MODE_INPUT) == MODE_INPUT:
+                    self.log.warn("Channel configured as Input, but this device does not have alarm support. No polling implemented!")
+                    break
 
     def _calculate_alarm_setting(self):
         """Override this and set self.wanted_alarm, this will be feed to set_alarm"""
@@ -89,8 +101,11 @@ class OwSwitchDevice(OwDevice):
         raise NotImplementedError("_calculate_alarm_setting property must be implemented by sub class")
 
     def on_seen(self, timestamp):
-        # We have nothing to do here; we are only using alarm
-        # However, ensure proper config..
+        # We have nothing to do here
+        if not self.alarm_supported:
+            return
+
+        # But we are using alarm, ensure proper config..
         self.check_alarm_config()
 
         if self._last_sensed != None:
@@ -110,6 +125,10 @@ class OwSwitchDevice(OwDevice):
         self._last_sensed = sensed
     
     def on_alarm(self, timestamp):
+        if not self.alarm_supported:
+            self.log.error("%s: Ignoring alarm, device should not get alarms!", self)
+            return
+            
         if self.check_alarm_config():
             self.log.warn("%s: Ignoring alarm, device was not ready", self)
             return

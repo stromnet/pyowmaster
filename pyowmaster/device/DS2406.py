@@ -33,7 +33,7 @@ CH_IDS = {'A':0, 'B':1}
 
 class DS2406(OwSwitchDevice):
     def __init__(self, ow, id):
-        super(DS2406, self).__init__(ow, id)
+        super(DS2406, self).__init__(True, ow, id)
 
         # Cache for property channels
         self._channels = 0

@@ -1,6 +1,6 @@
 # vim: set expandtab sw=4 softtabstop=4 fileencoding=utf8 :
 #
-# Copyright 2014 Johan Ström
+# Copyright 2015 Johan Ström
 #
 # This python package is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,7 +15,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-__all__ = ['DS1820', 'DS2406', 'DS2408', 'DS2413', 'DS2423']
+from base import OwDevice
+from switch_base import OwSwitchDevice, MODE_ACTIVE_HIGH
 
+def register(factory):
+    factory.register("3A", DS2413)
 
+CH_NAMES = ['A', 'B']
+CH_IDS = {'A':0, 'B':1}
+
+class DS2413(OwSwitchDevice):
+    def __init__(self, ow, id):
+        super(DS2413, self).__init__(False, ow, id)
+        self.channels = 2
+
+    def _ch_translate(self, ch):
+        return CH_NAMES[ch]
+
+    def _ch_translate_rev(self, ch):
+        return CH_IDS[ch.upper()]
 
