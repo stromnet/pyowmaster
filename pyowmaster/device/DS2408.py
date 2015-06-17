@@ -78,6 +78,7 @@ class DS2408(OwSwitchDevice):
 
         # Read POR status
         por = int(self.owReadStr('por', uncached=True))
+        self.log.debug("%s: POR is %d", self, por)
         if por != 0:
             self.log.info("%s: power-up alarm, resetting & clearing latches", self)
             self.owWrite('por', 0)

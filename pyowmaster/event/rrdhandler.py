@@ -22,12 +22,16 @@ import rrdtool
 import os, time
 from os.path import abspath, exists, isdir
 
-def create(config_get, inventory):
-    return RRDOwEventHandler(config_get('rrdhandler', 'rrdpath', os.getcwd()))
+def create(inventory):
+    return RRDOwEventHandler()
 
 class RRDOwEventHandler(ThreadedOwEventHandler):
-    def __init__(self, rrdpath, max_queue_size=0):
+    def __init__(self, max_queue_size=0):
         super(RRDOwEventHandler, self).__init__(max_queue_size)
+
+    def config(self, config):
+        rrdpath = config.get('rrdhandler:rrdpath', os.getcwd())
+
         rrdpath = abspath(rrdpath) + os.sep
         if exists(rrdpath):
             if not isdir(rrdpath):
@@ -46,8 +50,9 @@ class RRDOwEventHandler(ThreadedOwEventHandler):
             os.makedirs(rrdpath)
 
         self.rrdpath = rrdpath
+        self.log.debug("RRD handler configured with path %s", rrdpath)
 
-        self.log.debug("RRD handler ready with path %s", rrdpath)
+        # Start, unless already started
         self.start()
 
     def handle_event_blocking(self, event):

@@ -20,21 +20,26 @@ from events import *
 
 import socket
 
-def create(config_get, inventory):
-    host = config_get('tsdbhandler', 'host', 'localhost')
-    port = config_get('tsdbhandler', 'port', 4242)
-
-    tsdb = OpenTSDBEventHandler((host, port))
-
-    tsdb.extra_tags = config_get('tsdbhandler', 'extra_tags', None)
-
+def create(inventory):
+    tsdb = OpenTSDBEventHandler()
     return tsdb
 
 class OpenTSDBEventHandler(ThreadedOwEventHandler):
-    def __init__(self, address, max_queue_size=0):
+    def __init__(self, max_queue_size=0):
         super(OpenTSDBEventHandler, self).__init__(max_queue_size)
+        self.address = None
+        self.socket = None
 
-        self.address = address
+    def config(self, config):
+        host = config.get('tsdbhandler:host', 'localhost')
+        port = config.get('tsdbhandler:port', 4242)
+
+        if self.address and \
+                (self.address[0] != host or \
+                 self.address[1] != port):
+            self.cleanup()
+
+        self.address = (host, port)
 
         # These can be overriden 
         self.metric_name = 'owfs.reading'
@@ -42,10 +47,11 @@ class OpenTSDBEventHandler(ThreadedOwEventHandler):
         self.alias_key = 'alias'
         self.type_key = 'type'
         self.channel_key = 'ch'
-        self.extra_tags = None # String with key=word pairs
 
-        self.log.debug("OpenTSDB handler ready: %s", address)
-        self.socket = None
+        # String with key=word pairs
+        self.extra_tags = config.get('tsdbhandler:extra_tags', None)
+
+        self.log.debug("OpenTSDB handler configured for %s", self.address)
         self.start()
 
     def handle_event_blocking(self, event):

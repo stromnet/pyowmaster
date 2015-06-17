@@ -24,6 +24,10 @@ class OwEventHandler(object):
         self.log = logging.getLogger(type(self).__name__)
         pass
 
+    def config(self, config):
+        """This should be implement if reading from config is required"""
+        pass
+
     def handle_event(self, event):
         """Handle the event in some way. Should not raise exceptions, and it may not perform
         any blocking operations."""
@@ -43,6 +47,11 @@ class OwEventDispatcher(OwEventHandler):
     def add_handler(self, handler):
         """Add a handler to be executed"""
         self.handlers.append(handler)
+
+    def refresh_config(self, config):
+        """Refresh config for all handlers"""
+        for h in self.handlers:
+            h.config(config)
 
     def handle_event(self, event):
         """Take the event, and let each registered handler deal with it.
@@ -68,7 +77,8 @@ class ThreadedOwEventHandler(OwEventHandler):
         self.queue = Queue.Queue(maxsize=max_queue_size)
 
     def start(self):
-        self.thread.start()
+        if not self.thread.isAlive():
+            self.thread.start()
 
     def handle_event_blocking(self, event):
         """Allow the subclass to handle the event, blocking allowed here"""

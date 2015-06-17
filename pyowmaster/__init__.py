@@ -37,10 +37,10 @@ SCAN_ALARM = 1
 class OwMaster(object):
     """Init a new OwMaster instance with the given pyownet OwnetProxy
     """
-    def __init__(self, owNetProxy, config_get):
+    def __init__(self, owNetProxy, config):
         self.log = logging.getLogger(type(self).__name__)
         self.ow = owNetProxy
-        self.config_get = config_get
+        self.config = config
 
     def main(self):
         try:
@@ -48,6 +48,11 @@ class OwMaster(object):
             self._mainloop()
         except:
             self.log.error("Unhandled exception, crashing", exc_info=True)
+
+    def refresh_config(self):
+        """This will ask all devices to refresh their config from the cfg struct"""
+        self.inventory.refresh_config(self.config)
+        self.eventDispatcher.refresh_config(self.config)
 
     def _setup(self):
         # Create a scheduler where we queue our tasks
@@ -62,7 +67,7 @@ class OwMaster(object):
 
         # Init our own statistics tracker
         self.stats = MasterStatistics(self.queueLowPrio, self.eventDispatcher,
-                self.config_get('owmaster', 'stats_report_interval', 60))
+                self.config.get('owmaster:stats_report_interval', 60))
 
         # Init bus object
         self.bus = OwBus(self.ow)
@@ -73,7 +78,7 @@ class OwMaster(object):
         self.owstats.init(self.eventDispatcher, self.stats)
 
         # Init a factory, and then an associated inventory
-        self.factory = DeviceFactory(self.ow, self.eventDispatcher, self.stats, self.config_get)
+        self.factory = DeviceFactory(self.ow, self.eventDispatcher, self.stats, self.config)
         self.inventory = DeviceInventory(self.factory)
 
         # Load handler modules
@@ -82,8 +87,8 @@ class OwMaster(object):
         # Key'ed SCAN_FULL(0) and SCAN_ALARM(1)
         self.lastScan = [0, 0]
         self.scanInterval = [
-                self.config_get('owmaster', 'scan_interval', 30),
-                self.config_get('owmaster', 'alarm_scan_interval', 1.0)
+                self.config.get('owmaster:scan_interval', 30),
+                self.config.get('owmaster:alarm_scan_interval', 1.0)
             ]
         self.scanQueue = [self.queueLowPrio, self.queueHighPrio]
 
@@ -124,7 +129,7 @@ class OwMaster(object):
             self.log.error("Unhandled exception while shutting down event handlers", exc_info=True)
 
     def load_handlers(self):
-        module_names = self.config_get('owmaster', 'modules', None)
+        module_names = self.config.get('owmaster:modules', None)
         if not module_names:
             return
 
@@ -133,7 +138,11 @@ class OwMaster(object):
         for module_name in module_names:
             self.log.debug("Initing module %s", module_name)
             m = importlib.import_module(module_name)
-            h = m.create(self.config_get, self.inventory)
+            # Create and execute initial config
+            h = m.create(self.inventory)
+            h.config(self.config)
+
+            # Add to eventDispatcher; this handler will now get all events
             self.eventDispatcher.add_handler(h)
 
 
@@ -271,13 +280,13 @@ class OwMaster(object):
 
 
 class DeviceFactory(object):
-    def __init__(self, owNetProxy, eventDispatcher, stats, config_get):
+    def __init__(self, owNetProxy, eventDispatcher, stats, config):
         self.log = logging.getLogger(type(self).__name__)
         self.ow = owNetProxy
         self.deviceTypes = {}
         self.eventDispatcher = eventDispatcher
         self.stats = stats
-        self.config_get = config_get
+        self.config = config
 
         # Register known device classes
         for d in device.__all__:
@@ -297,7 +306,7 @@ class DeviceFactory(object):
 
         dev = devType(self.ow, id)
         dev.init(self.eventDispatcher, self.stats)
-        dev.config(self.config_get)
+        dev.config(self.config)
         return dev
 
 
@@ -311,6 +320,11 @@ class DeviceInventory(object):
         # However, current config, and agoconfig, does not provide listing of individual
         # nodes....
 
+    def refresh_config(self, config):
+        """This will ask all devices to refresh their config"""
+        for id in self.devices:
+            dev = self.devices[id]
+            dev.config(config)
 
     def find(self, idOrPath, create=False):
         """Find a Device object associated with the specified 1-wire ID.

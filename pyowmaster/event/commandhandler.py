@@ -19,17 +19,20 @@ from handler import ThreadedOwEventHandler
 from events import *
 import subprocess, re, os
 
-def create(config_get, inventory):
-    return CommandEventHandler(config_get, inventory)
+def create(inventory):
+    return CommandEventHandler(inventory)
 
 RE_DEV_CMD = re.compile('([A-F0-9][A-F0-9]\.[A-F0-9]{12})\.([0-9AB])=(on|off)')
 class CommandEventHandler(ThreadedOwEventHandler):
     """A EventHandler which reacts to OwSwitchEvents and executes commands based on these"""
-    def __init__(self, config_get, inventory, max_queue_size=0):
+    def __init__(self, inventory, max_queue_size=0):
       super(CommandEventHandler, self).__init__(max_queue_size)
-      self.config_get = config_get
       self.inventory = inventory
       self.start()
+
+    def config(self, config):
+        # No active reconfigure; always loaded on demand
+        self.cfg = config
 
     def handle_event_blocking(self, event):
         if not isinstance(event, OwSwitchEvent):
@@ -43,7 +46,7 @@ class CommandEventHandler(ThreadedOwEventHandler):
             cmd_key = 'command.ch.%s.trigged' % event.channel
 
         self.log.debug("Looking for command for %s for %s", cmd_key, event.deviceId.id)
-        cmd = self.config_get(event.deviceId.id, cmd_key, None)
+        cmd = self.cfg.get(event.deviceId.id+':'+ cmd_key, None)
         if not cmd:
             return
 

@@ -30,7 +30,8 @@ DeviceId = namedtuple('DeviceId', 'id alias')
 
 class OwDevice(object):
     def __init__(self, ow, id):
-        self.log = logging.getLogger(type(self).__name__)
+        self.type = type(self).__name__
+        self.log = logging.getLogger(self.type)
         self.id = id
         self.alias = None
         self.ow = ow
@@ -43,13 +44,15 @@ class OwDevice(object):
         self.eventDispatcher = eventDispatcher
         self.stats = stats
 
-    def config(self, config_get):
-        """Configure this device from config file.
-        Base impl just reads alias, first by checking device section for alias,
-        secondary by checking alias section for device name"""
-        self.alias = config_get(self.id, 'alias', None)
-        if self.alias == None:
-            self.alias = config_get('aliases', self.id, None)
+    def config(self, config):
+        """(Re-)Configure this device from config file.
+
+        This looks for a device alias under either devices:<id>:alias, or if not there,
+        falling back to devices:aliases:<id>"""
+        self.alias = config.get(('devices', self.id, 'alias'), None)
+
+        if not self.alias:
+            self.alias = config.get(('devices', 'aliases', self.id), None)
 
         self.deviceId = DeviceId(self.id, self.alias)
 

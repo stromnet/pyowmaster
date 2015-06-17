@@ -43,6 +43,9 @@ def parse_switch_config(cfgstr):
         else:
             # Default momentary
             cfg |= MODE_INPUT_MOMENTARY
+
+        # Todo: add "debounce" possibility, i.e. block input
+        # for x seconds
     
     if cfgstr.find('active low') != -1:
         cfg |= MODE_ACTIVE_LOW
@@ -74,13 +77,15 @@ class OwSwitchDevice(OwDevice):
         self.inital_setup_done = False
         self._last_sensed = None
 
-    def config(self, config_get):
-        super(OwSwitchDevice, self).config(config_get)
+    def config(self, config):
+        super(OwSwitchDevice, self).config(config)
 
         self.mode = []
         for ch in range(self.channels):
             chname = str(self._ch_translate(ch))
-            cfg = parse_switch_config(config_get(self.id, "ch." + chname, 'input momentary'))
+            # Primarily read section with <device-id>:<ch.X>, fall back on <device-type>:<ch.X>
+            cfgval = config.get(('devices', (self.id, self.type), 'ch.' + chname), 'input momentary')
+            cfg = parse_switch_config(cfgval)
 #            self.log.debug("Ch %s configured as %d", chname, cfg)
             self.mode.append(cfg)
 

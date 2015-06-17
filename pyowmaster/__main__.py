@@ -16,102 +16,110 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-import logging
-import ConfigParser, sys
+import logging, logging.config
+import ConfigParser, sys, yaml
 import time
 
 from pyownet.protocol import *
 from . import OwMaster
+from ecollections import EnhancedMapping
+
+class Main:
+    def __init__(self):
+        self.owm = None
+        self.cfgfile = None
+
+    def run(self, cfgfile=None, configure_logging=True):
+        self.cfgfile = cfgfile
+        self.reload_config()
+
+        if configure_logging:
+            self.setup_logging()
+
+        log = self.log = logging.getLogger(__name__)
+
+        try:
+            flags = 0
+            temp_unit = self.cfg.get('owmaster:temperature_unit', 'C').upper()
+            if temp_unit == 'C': flags |= FLG_TEMP_C
+            elif temp_unit == 'F': flags |= FLG_TEMP_F
+            elif temp_unit == 'K': flags |= FLG_TEMP_K
+            elif temp_unit == 'R': flags |= FLG_TEMP_R
+            else: raise Exception("Invalid temperature_unit")
+            #flags| = FLG_PERSISTENCE
+
+            ow_port = self.cfg.get('owmaster:owserver_port', 4304)
+            tries = 0
+            while True:
+                try:
+                    self.owm = OwMaster(OwnetProxy(port=ow_port,verbose=False, flags=flags), self.cfg)
+                    break
+                except ConnError, e:
+                    tries+=1
+                    backoff = min((tries * 2) + 1, 60)
+                    log.warn("Failed initial connect to owserver on port %d, retrying in %ds: %s", ow_port, backoff, e)
+                    time.sleep(backoff)
+
+            self.owm.main()
+        finally:
+            if self.owm:
+                self.owm.shutdown()
+
+    def setup_logging(self, is_reload=False):
+        """Setup logging based on the logconfig specified"""
+        logcfg = self.cfg.get('logging', {'version': 1})
+
+        if is_reload:
+            logcfg['incremental'] = True
+
+        logging.config.dictConfig(logcfg)
+
+    def reload_config(self):
+        if not self.cfgfile:
+            return
+
+        # Reset config and re-read from cfgfile
+        if hasattr(self, 'log'):
+            self.log.debug("Reloading %s", self.cfgfile)
+
+        with open(self.cfgfile) as f:
+            cfg = yaml.load(f)
+            if not cfg:
+                cfg = {}
+
+            self.cfg = EnhancedMapping(cfg)
+
+        import pprint
+        pprint.pprint(self.cfg)
+
+        if self.owm:
+            self.owm.refresh_config()
+            self.setup_logging(True)
 
 
-def setup_logging(logfile):
-    """Setup basic logging to console + a logfile"""
-    fmt="%(asctime)-15s %(thread)d %(levelname)-5s %(name)-10s %(message)s"
-    logging.basicConfig(level=logging.DEBUG, format=fmt)
+import code, traceback, signal
 
-    fh = logging.FileHandler(logfile, 'a')
-    fh.setFormatter(logging.Formatter(fmt, None))
-    fh.setLevel(logging.DEBUG)
-    logging.Logger.root.addHandler(fh)
+def debug(sig, frame):
+    """Interrupt running process, and provide a python prompt for
+    interactive debugging."""
+    d={'_frame':frame}         # Allow access to frame object.
+    d.update(frame.f_globals)  # Unless shadowed by global
+    d.update(frame.f_locals)
 
+    i = code.InteractiveConsole(d)
+    message  = "Signal received : entering python shell.\nTraceback:\n"
+    message += ''.join(traceback.format_stack(frame))
+    i.interact(message)
 
-def read_config(cfgfile):
-    """Read config from file using ConfigParser"""
-    cfg.read(cfgfile)
-    set_config(cfg)
+def sighup(sig, frame):
+    main.reload_config()
 
-
-# Default, empty config
-cfg = ConfigParser.ConfigParser()
-def set_config(cfgparser):
-    """Allow setting of global ConfigParser object"""
-    cfg = cfgparser
-
-def config_get(sections, option, default=None):
-    """Helper function to fetch data from global ConfigParser object,
-    with support for default and multiple (fallback) sections"""
-
-    if type(sections) != tuple:
-        sections = (sections,)
-
-    for section in sections:
-        if not cfg.has_option(section, option):
-            continue
-
-        data = cfg.get(section, option)
-        if default != None:
-            if isinstance(default, long):
-                return long(data)
-            if isinstance(default, int):
-                return int(data)
-            if isinstance(default, float):
-                return float(data)
-        return data
-
-    return default
-
-def main(cfgfile=None, config_get_fn=None, configure_logging=True):
-    if cfgfile:
-        read_config(cfgfile)
-
-    if not config_get_fn:
-        config_get_fn = config_get
-
-
-    if configure_logging:
-        setup_logging(config_get('owmaster', 'logfile', 'owmaster.log'))
-
-    log = logging.getLogger(__name__)
-
-    try:
-        owm = None
-        flags = 0
-        temp_unit = config_get('owmaster', 'temperature_unit', 'C').upper()
-        if temp_unit == 'C': flags |= FLG_TEMP_C
-        elif temp_unit == 'F': flags |= FLG_TEMP_F
-        elif temp_unit == 'K': flags |= FLG_TEMP_K
-        elif temp_unit == 'R': flags |= FLG_TEMP_R
-        else: raise Exception("Invalid temperature_unit")
-        #flags| = FLG_PERSISTENCE
-
-        ow_port = config_get('owmaster', 'owserver_port', 4304)
-        tries = 0
-        while True:
-            try:
-                owm = OwMaster(OwnetProxy(port=ow_port,verbose=False, flags=flags), config_get_fn)
-                break
-            except ConnError, e:
-                tries+=1
-                backoff = min((tries * 2) + 1, 60)
-                log.warn("Failed initial connect to owserver on port %d, retrying in %ds: %s", ow_port, backoff, e)
-                time.sleep(backoff)
-
-        owm.main()
-    finally:
-        if owm:
-            owm.shutdown()
-
+def sig_listen():
+    signal.signal(signal.SIGUSR1, debug)
+    signal.signal(signal.SIGHUP, sighup)
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "owmaster.cfg")
+    sig_listen()
+    main = Main()
+    main.run(sys.argv[1] if len(sys.argv) > 1 else "owmaster.yaml")
 
