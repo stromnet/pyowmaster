@@ -1,0 +1,122 @@
+# vim: set expandtab sw=2 softtabstop=2 fileencoding=utf8 :
+  
+# Generic configuration
+owmaster:
+  # On which localhost port the owserver runs
+  owserver_port: 4305
+
+  # In which unit we should read temperatures
+  temperature_unit: C
+
+  # How often (seconds) to scan the bus for new devices; this is also how often we poll
+  # temperature sensors
+  scan_interval: 30
+
+  # How often (seconds) we scan the bus for alarming devices; this is used only for switch-type
+  # devices such as DS2406/DS208.
+  alarm_scan_interval: 0.2
+
+  # Extra modules to load
+  # TODO: move
+  modules:
+    pyowmaster.event.rrdhandler
+    pyowmaster.event.tsdbhandler
+    pyowmaster.event.commandhandler
+
+# TODO: move 
+rrdhandler:
+  rrdpath: /home/johan/rrd/rrd-dev/
+
+# TODO: move 
+tsdbhandler:
+  host: localhost
+  extra_tags: bus=dev
+
+
+# All known devices
+devices:
+  DS1820:
+    # Default sanity limits common for all DS182x sensors; we set this to avoid alarms
+    # on every convert
+    min_temp: -20
+    max_temp: 80
+
+  28.123457000000:
+    # Specific settings for this device temperature device
+    alias: freezer
+    min_temp: -30
+    max_temp: 80
+
+  # Some devices we just want to alias. the aliases section is a shortcut
+  aliases:
+    28.9283929211: temp1
+    28.8901223122: temp2
+    28.98Aacbbcfd: temp3
+
+  12.212333330000:
+    # A DS2406 device, which has two PIOs
+    alias: my-test-device
+    # Channel A is an output
+    ch.A: output
+    # Channel B, is an push-button input which is to be regarded as active when it reads '1'
+    ch.B: input momentary active high
+
+    # commandhandler integration TODO
+    command.ch.B.trigged: 12.212333330000.A=on,12.212333330000.5=off
+    command.ch.A.trigged: shell:echo "Hej"
+
+  29.211144200000:
+    # A DS2408, which has 8 PIOs
+    alias: multi-io
+    # Most inputs are momentary
+    ch.0: input active high
+    ch.1: input active high
+    ch.2: input active high
+    ch.3: input active high
+    ch.4: input active high
+    # but we got one output
+    ch.5: output
+
+    # And one toggle input
+    ch.6: input toggle active high
+
+    # Unused
+    ch.7: input
+
+    command.ch.0.trigged: 29.211144200000.5=off,12.212333330000.A=off
+    command.ch.1.trigged: 29.211144200000.5=on,12.212333330000.A=off
+
+    command.ch.6.on: shell:owwrite -s localhost:4305 /29.211144200000/PIO.5 1
+    command.ch.6.off: shell:owwrite -s localhost:4305 /29.211144200000/PIO.5 0
+
+
+# Logging configuration
+# this dict is feed into logging.config.dictConfig
+logging:
+  version: 1
+
+  formatters:
+    simple:
+      format: '%(asctime)-15s %(thread)d %(levelname)-5s %(name)-10s %(message)s'
+
+  handlers:
+    console:
+      class: logging.StreamHandler
+      level: DEBUG
+      formatter: simple
+      stream: ext://sys.stdout
+    file:
+      class: logging.FileHandler
+      level: DEBUG
+      formatter: simple
+      filename: owmaster-dev.log
+
+  loggers:
+    OwEventDispatcher:
+      level: INFO
+  #    handlers: [console]
+  #    propagate: no
+  root:
+    level: DEBUG
+    handlers: [console,file]
+
