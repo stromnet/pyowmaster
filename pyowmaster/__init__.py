@@ -49,8 +49,9 @@ class OwMaster(object):
         except:
             self.log.error("Unhandled exception, crashing", exc_info=True)
 
-    def refresh_config(self):
+    def refresh_config(self, config):
         """This will ask all devices to refresh their config from the cfg struct"""
+        self.config = config
         self.inventory.refresh_config(self.config)
         self.eventDispatcher.refresh_config(self.config)
 
@@ -72,10 +73,12 @@ class OwMaster(object):
         # Init bus object
         self.bus = OwBus(self.ow)
         self.bus.init(self.eventDispatcher, self.stats)
+        self.bus.config(self.config)
 
         # Init pseudo-device fetching statistics from OWFS
         self.owstats = OwStatistics(self.ow)
         self.owstats.init(self.eventDispatcher, self.stats)
+        self.owstats.config(self.config)
 
         # Init a factory, and then an associated inventory
         self.factory = DeviceFactory(self.ow, self.eventDispatcher, self.stats, self.config)

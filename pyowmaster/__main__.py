@@ -93,7 +93,7 @@ class Main:
         pprint.pprint(self.cfg)
 
         if self.owm:
-            self.owm.refresh_config()
+            self.owm.refresh_config(self.cfg)
             self.setup_logging(True)
 
 
