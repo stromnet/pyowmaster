@@ -36,6 +36,9 @@ def resolve_keys(keys):
     res = []
 
     for part in keys:
+        if part == None:
+            continue
+
         if type(part) in (int, str):
             # Plain string/int, add to end of every known mutation
             if len(res) == 0:
@@ -49,7 +52,8 @@ def resolve_keys(keys):
             if len(res) == 0:
                 # First section of the key
                 for variant in part:
-                    res.append(variant)
+                    if variant != None:
+                        res.append(str(variant))
             else:
                 # Subsequent section of the key(s)
                 # For every existing mutation, create a clone for each new mutation,
@@ -57,7 +61,8 @@ def resolve_keys(keys):
                 new = []
                 for n in range(len(res)):
                     for m in range(len(part)):
-                        new.append(res[n] + ':' + part[m])
+                        if part[m] != None:
+                            new.append(res[n] + ':' + part[m])
                 res = new
         else:
             raise Exception("Unknown part type %s in keys" % str(part))

@@ -9,15 +9,19 @@ class ResolveKeysTest(unittest.TestCase):
         self.assertEquals(resolve_keys('a:b'), ['a:b'])
         self.assertEquals(resolve_keys('a'), ['a'])
         self.assertEquals(resolve_keys(('a:b',)), ['a:b'])
+        self.assertEquals(resolve_keys(1), ['1'])
 
     def testTupleKeys(self):
         self.assertEquals(resolve_keys(('a',)), ['a'])
         self.assertEquals(resolve_keys(('a', 'b')), ['a:b'])
         self.assertEquals(resolve_keys(('a', 'b:c', 'd')), ['a:b:c:d'])
         self.assertEquals(resolve_keys(['a', 'b:c', 'd']), ['a:b:c:d'])
+        self.assertEquals(resolve_keys((1, 2)), ['1:2'])
 
     def testMultiKeys(self):
         self.assertEquals(resolve_keys((('a', 'b'),)), ['a', 'b'])
+        self.assertEquals(resolve_keys(((1, 2),)), ['1', '2'])
+        self.assertEquals(resolve_keys(((1, 2),3)), ['1:3', '2:3'])
         self.assertEquals(resolve_keys((
             'x',
             ('a', 'b'),
@@ -36,6 +40,9 @@ class ResolveKeysTest(unittest.TestCase):
         self.assertEquals(
             resolve_keys((('10.81239083289', 'DS18B20'), 'min_temp')),
             ['10.81239083289:min_temp', 'DS18B20:min_temp'])
+
+    def testNoneIgnored(self):
+        self.assertEquals(resolve_keys((('a', None, '1'), 'b')), ['a:b', '1:b'])
 
 
 class EnhancedMappingTest(unittest.TestCase):
