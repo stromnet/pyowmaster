@@ -56,6 +56,12 @@ class OwDevice(object):
 
         self.deviceId = DeviceId(self.id, self.alias)
 
+        self.maxExecTime = [None,
+                config.get(('devices', (self.id, self.type), 'max_read_time'), 1),
+                config.get(('devices', (self.id, self.type), 'max_write_time'), 1),
+                config.get(('devices', (self.id, self.type), 'max_dir_time'), 2)
+            ]
+
     def owRead(self, subPath, uncached=False):
         if not uncached:
             path = self.path
@@ -123,8 +129,10 @@ class OwDevice(object):
         self.stats.increment('ops.count_' + OwIoStatistic.OPS[stats.operation], stats.time*1000.0)
         self.stats.increment('ops.ms_' + OwIoStatistic.OPS[stats.operation], stats.time*1000.0)
 
-        if stats.time > (1 if stats.operation != OwIoStatistic.OP_DIR else 2):
-            self.log.warn("%s: %s %s took %.2fs", stats.id, OwIoStatistic.OPS[stats.operation], stats.path, stats.time)
+        if stats.time > self.maxExecTime[stats.operation]:
+            self.log.warn("%s: %s %s took %.2fs (max_exec_time %.2fs)", stats.id, OwIoStatistic.OPS[stats.operation], stats.path, stats.time, self.maxExecTime[stats.operation])
+        elif self.log.isEnabledFor(logging.DEBUG):
+            self.log.debug("%s: %s %s took %.2fs (max_exec_time %.2fs)", stats.id, OwIoStatistic.OPS[stats.operation], stats.path, stats.time, self.maxExecTime[stats.operation])
 
 
     def on_seen(self, timestamp):
