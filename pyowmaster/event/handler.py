@@ -24,7 +24,15 @@ class OwEventHandler(object):
         self.log = logging.getLogger(type(self).__name__)
         pass
 
-    def config(self, config):
+    def _init_config(self, root_config, cfg_module_name):
+        self.cfg_module_name = cfg_module_name
+        self._update_config(root_config)
+
+    def _update_config(self, root_config):
+        module_config = root_config.get(('modules', self.cfg_module_name), {})
+        self.config(module_config, root_config)
+
+    def config(self, module_config, root_config):
         """This should be implement if reading from config is required"""
         pass
 
@@ -48,10 +56,10 @@ class OwEventDispatcher(OwEventHandler):
         """Add a handler to be executed"""
         self.handlers.append(handler)
 
-    def refresh_config(self, config):
+    def refresh_config(self, root_config):
         """Refresh config for all handlers"""
         for h in self.handlers:
-            h.config(config)
+            h._update_config(root_config)
 
     def handle_event(self, event):
         """Take the event, and let each registered handler deal with it.

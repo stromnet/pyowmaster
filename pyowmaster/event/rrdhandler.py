@@ -29,8 +29,8 @@ class RRDOwEventHandler(ThreadedOwEventHandler):
     def __init__(self, max_queue_size=0):
         super(RRDOwEventHandler, self).__init__(max_queue_size)
 
-    def config(self, config):
-        rrdpath = config.get('rrdhandler:rrdpath', os.getcwd())
+    def config(self, module_config, root_config):
+        rrdpath = module_config.get('rrdpath', os.getcwd())
 
         rrdpath = abspath(rrdpath) + os.sep
         if exists(rrdpath):

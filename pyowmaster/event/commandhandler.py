@@ -30,9 +30,9 @@ class CommandEventHandler(ThreadedOwEventHandler):
       self.inventory = inventory
       self.start()
 
-    def config(self, config):
-        # No active reconfigure; always loaded on demand
-        self.cfg = config
+    def config(self, module_config, root_config):
+        # No active reconfigure; always loaded on demand, from root config
+        self.cfg = root_config 
 
     def handle_event_blocking(self, event):
         if not isinstance(event, OwSwitchEvent):

@@ -132,18 +132,17 @@ class OwMaster(object):
             self.log.error("Unhandled exception while shutting down event handlers", exc_info=True)
 
     def load_handlers(self):
-        module_names = self.config.get('owmaster:modules', None)
-        if not module_names:
+        modules = self.config.get('modules', {})
+        if len(modules) == 0:
             return
 
-        module_names = module_names.split(" ")
-
-        for module_name in module_names:
+        for module_name in modules.keys():
             self.log.debug("Initing module %s", module_name)
             m = importlib.import_module(module_name)
+
             # Create and execute initial config
             h = m.create(self.inventory)
-            h.config(self.config)
+            h._init_config(self.config, module_name)
 
             # Add to eventDispatcher; this handler will now get all events
             self.eventDispatcher.add_handler(h)
@@ -323,11 +322,11 @@ class DeviceInventory(object):
         # However, current config, and agoconfig, does not provide listing of individual
         # nodes....
 
-    def refresh_config(self, config):
+    def refresh_config(self, root_config):
         """This will ask all devices to refresh their config"""
         for id in self.devices:
             dev = self.devices[id]
-            dev.config(config)
+            dev.config(root_config)
 
     def find(self, idOrPath, create=False):
         """Find a Device object associated with the specified 1-wire ID.

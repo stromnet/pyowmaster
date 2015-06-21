@@ -1,5 +1,5 @@
 # vim: set expandtab sw=2 softtabstop=2 fileencoding=utf8 :
-  
+
 # Generic configuration
 owmaster:
   # On which localhost port the owserver runs
@@ -16,22 +16,25 @@ owmaster:
   # devices such as DS2406/DS208.
   alarm_scan_interval: 0.2
 
-  # Extra modules to load
-  # TODO: move
-  modules:
-    pyowmaster.event.rrdhandler
-    pyowmaster.event.tsdbhandler
-    pyowmaster.event.commandhandler
+modules:
+  # Event handler modules to load
 
-# TODO: move 
-rrdhandler:
-  rrdpath: /home/johan/rrd/rrd-dev/
+  pyowmaster.event.rrdhandler:
+    # RRDHandler automatically creates and updates RRD files for every
+    # sensor value
+    rrdpath: /var/somewhere/rrd/
 
-# TODO: move 
-tsdbhandler:
-  host: localhost
-  extra_tags: bus=dev
+  pyowmaster.event.tsdbhandler:
+    # TSDBHandler talks with OpenTSDB and submits every sensor value
+    # to the TSDB
+    host: localhost
 
+    # Any extra k/v tags to submit for each value
+    extra_tags: bus=dev
+
+  pyowmaster.event.commandhandler:
+    # Command execution handler; configuration is on each
+    # device, nothing configurable here.
 
 # All known devices
 devices:

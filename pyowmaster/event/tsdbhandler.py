@@ -30,9 +30,9 @@ class OpenTSDBEventHandler(ThreadedOwEventHandler):
         self.address = None
         self.socket = None
 
-    def config(self, config):
-        host = config.get('tsdbhandler:host', 'localhost')
-        port = config.get('tsdbhandler:port', 4242)
+    def config(self, module_config, root_config):
+        host = module_config.get('host', 'localhost')
+        port = module_config.get('port', 4242)
 
         if self.address and \
                 (self.address[0] != host or \
@@ -49,7 +49,7 @@ class OpenTSDBEventHandler(ThreadedOwEventHandler):
         self.channel_key = 'ch'
 
         # String with key=word pairs
-        self.extra_tags = config.get('tsdbhandler:extra_tags', None)
+        self.extra_tags = module_config.get('extra_tags', None)
 
         self.log.debug("OpenTSDB handler configured for %s", self.address)
         self.start()
