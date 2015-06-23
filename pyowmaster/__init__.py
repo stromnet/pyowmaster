@@ -142,10 +142,17 @@ class OwMaster(object):
 
             # Create and execute initial config
             h = m.create(self.inventory)
-            h._init_config(self.config, module_name)
+            try:
+                h._init_config(self.config, module_name)
 
-            # Add to eventDispatcher; this handler will now get all events
-            self.eventDispatcher.add_handler(h)
+                # Add to eventDispatcher; this handler will now get all events
+                self.eventDispatcher.add_handler(h)
+            except:
+                try:
+                    h.shutdown()
+                except:
+                    pass
+                raise
 
 
     def scan(self, scan_mode):
