@@ -82,7 +82,7 @@ class OwMaster(object):
 
         # Init a factory, and then an associated inventory
         self.factory = DeviceFactory(self.ow, self.eventDispatcher, self.stats, self.config)
-        self.inventory = DeviceInventory(self.factory)
+        self.inventory = DeviceInventory(self.factory, self.config)
 
         # Load handler modules
         self.load_handlers()
@@ -306,34 +306,90 @@ class DeviceFactory(object):
         assert self.deviceTypes.get(familyCode) == None, "Family code %s already registered" % familyCode
         self.deviceTypes[familyCode] = classRef
 
-    def create(self, id):
-        family = id[0:2]
+    def create(self, dev_id):
+        family = dev_id[0:2]
         devType = self.deviceTypes.get(family)
         if devType == None:
             self.log.info("Cannot create device with family code %s, not registered", family)
             return None
 
-        dev = devType(self.ow, id)
+        dev = devType(self.ow, dev_id)
         dev.init(self.eventDispatcher, self.stats)
-        dev.config(self.config)
+
+        try:
+            dev.config(self.config)
+        except OwnetError as e:
+            self.log.warn("Failed to configure %s, OW failure: %s",
+                    dev_id, e)
+
         return dev
 
 
 class DeviceInventory(object):
-    def __init__(self, factory):
+    def __init__(self, factory, config):
         self.log = logging.getLogger(type(self).__name__)
         self.devices = {}
+        self.aliases = {}
         self.factory = factory
 
-        # TODO: Preload list of IDs from config..
-        # However, current config, and agoconfig, does not provide listing of individual
-        # nodes....
+        self.refresh_config(config)
 
     def refresh_config(self, root_config):
-        """This will ask all devices to refresh their config"""
-        for id in self.devices:
-            dev = self.devices[id]
-            dev.config(root_config)
+        """Init/refresh device configurations.
+
+        This will create any devices in config, and tries to configure them.
+        For all pre-existing devices (on config refresh), it will ask each
+        device to refresh their config.
+
+        Alias mappings will be updated here too.
+        """
+        configured_ids = set()
+        # Load from devices section
+        for dev_id in root_config.get('devices', {}):
+            configured_ids.add(dev_id)
+
+        # Load from common aliases-section too
+        for dev_id in root_config.get('devices:aliases', {}):
+            configured_ids.add(dev_id)
+
+        # Reset aliases map, re-add freshly to avoid the mess of
+        # cleaning up stale ones if they are changed
+        self.aliases = {}
+
+        # Create devices
+        just_created = set()
+        for dev_id in configured_ids:
+            # May contain non-IDs too, such as common settings per device-type, or
+            # aliases section.
+            if not RE_DEV_ID.match(dev_id):
+                continue
+
+            # Only create devices which are not yet known
+            if dev_id not in self.devices:
+                self._create_device(dev_id)
+                just_created.add(dev_id)
+
+        # Now, configure all existing devices
+        for dev_id in self.devices:
+            dev = self.devices[dev_id]
+            if not dev:
+                # Unknown device type
+                continue
+
+            if dev_id in just_created:
+                # Was just created, and thus configured
+                continue
+
+            try:
+                dev.config(root_config)
+            except OwnetError as e:
+                # This may occur if a device config requires online device,
+                # but failed to find it.
+                self.log.warn("Failed to configure %s, OW failure: %s",
+                        dev_id, e)
+
+            if dev.alias:
+                self._add_alias(dev.alias, dev_id)
 
     def find(self, idOrPath, create=False):
         """Find a Device object associated with the specified 1-wire ID.
@@ -341,8 +397,8 @@ class DeviceInventory(object):
         As the name indicates, a plain ID can be given, or a path which contains an ID.
         If the devices is not found, it is created.
         """
-        id = idFromPath(idOrPath)
-        if not id:
+        dev_id = idFromPath(idOrPath)
+        if not dev_id:
             # Invalid ID, could be an alias
             # XXX: If any device has an alias, we will miss it.
             # There is a bug in OWFS, it returns aliased names even if we ask it not to:
@@ -350,23 +406,63 @@ class DeviceInventory(object):
             # Until fixed, do not use alias.
             return None
 
-        device = self.devices.get(id)
-        if device == None:
+        dev = self.devices.get(dev_id)
+        if dev == None:
             if not create:
                 return None
 
-            device = self.factory.create(id)
-            if device == None:
-                # Not supported. Store False in dict
-                device = False
-            else:
-                self.log.info("New device %s", device)
+            dev = self._create_device(dev_id)
 
-            self.devices[id] = device
-
-        if device == False:
+        if dev == False:
             # But always return None..
             return None
+
+        return dev
+
+    def _create_device(self, dev_id):
+        """Internal function to create a device
+
+        The created device is put in the internal devices dict, and the device
+        is then returned.
+
+        If the DeviceFactory cannot create a device of the given ID,
+        we use the value False to indicate a non-supported entry.
+        """
+        dev = self.factory.create(dev_id)
+
+        if dev == None:
+            # Not supported. Store False in dict
+            dev = False
+        else:
+            self.log.info("New device %s", dev)
+            if dev.alias:
+                self._add_alias(dev.alias, dev_id)
+
+        self.devices[dev_id] = dev
+
+    def _add_alias(self, alias, dev_id):
+        """Add a device alias to the aliases mapping.
+
+        If the device is already mapped, a duplicate warning is emitted.
+        """
+        if alias in self.aliases:
+            if self.aliases[alias] == dev_id:
+                return
+
+            self.log.warn("Duplicate alias %s, seen on device %s and device %s",
+                    alias, dev_id, self.aliases[alias])
+
+        self.aliases[alias] = dev_id
+
+    def find_alias(self, alias):
+        """Find an existing Device object by alias"""
+        devId = self.aliases.get(alias, None)
+        if not devId:
+            return None
+
+        device = self.devices.get(devId, None)
+        if not device:
+            raise Exception("Alias %s pointed to device %s which was not found" % (alias, devId))
 
         return device
 
@@ -383,9 +479,9 @@ class DeviceInventory(object):
                     dev = dev.id
                 skip[dev] = 1
 
-        for id in self.devices:
-            dev = self.devices[id]
-            if dev and id not in skip:
+        for dev_id in self.devices:
+            dev = self.devices[dev_id]
+            if dev and dev_id not in skip:
                 out.append(dev)
 
         return out
