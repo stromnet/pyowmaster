@@ -384,7 +384,8 @@ class DeviceInventory(object):
                 dev.config(root_config)
             except OwnetError as e:
                 # This may occur if a device config requires online device,
-                # but failed to find it.
+                # but failed to find it, or if it failed to configure the remote device.
+                # It should try later!
                 self.log.warn("Failed to configure %s, OW failure: %s",
                         dev_id, e)
 
@@ -454,15 +455,19 @@ class DeviceInventory(object):
 
         self.aliases[alias] = dev_id
 
-    def find_alias(self, alias):
-        """Find an existing Device object by alias"""
-        devId = self.aliases.get(alias, None)
+    def find_alias(self, alias_or_id):
+        """Find an existing Device object by 1-wire ID OR alias"""
+        device = self.devices.get(alias_or_id, None)
+        if device:
+            return device
+
+        devId = self.aliases.get(alias_or_id, None)
         if not devId:
             return None
 
         device = self.devices.get(devId, None)
         if not device:
-            raise Exception("Alias %s pointed to device %s which was not found" % (alias, devId))
+            raise Exception("Alias %s pointed to device %s which was not found" % (alias_or_id, devId))
 
         return device
 
@@ -485,6 +490,9 @@ class DeviceInventory(object):
                 out.append(dev)
 
         return out
+
+    def __iter__(self):
+        return self.devices.values().__iter__()
 
     def size(self):
         return len(self.devices)
