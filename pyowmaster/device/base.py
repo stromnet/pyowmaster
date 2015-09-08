@@ -28,13 +28,20 @@ OwIoStatistic.OPS = [0, 'read', 'write', 'dir']
 
 DeviceId = namedtuple('DeviceId', 'id alias')
 
-class OwDevice(object):
+class Device(object):
     def __init__(self, ow, id):
         self.type = type(self).__name__
         self.log = logging.getLogger(self.type)
         self.id = id
         self.alias = None
         self.ow = ow
+
+    def config(self, config):
+        pass
+
+class OwDevice(Device):
+    def __init__(self, ow, id):
+        super(OwDevice, self).__init__(ow, id)
 
         self.path = '/%s/' % self.id
         self.pathUncached = '/uncached/%s/' % self.id
@@ -160,4 +167,20 @@ class OwBus(OwDevice):
 
     def on_alarm(self, timestamp):
         raise NotImplementedError("Not supposed to call on_alarm on OwBus")
+
+class OwChannel(object):
+    """Represents some kind of channel on a 1Wire device
+    Num is usually a 0-based index, while name may be the same, or an alternative such as 'A'
+    """
+    def __init__(self, num, name, cfg):
+        """Create a new channel with num/name, and an cfg dict with channel-specific configuration"""
+        self.num = num
+        self.name = name
+        self.alias = cfg.get('alias', None)
+
+        # Keep cfg struct for others use, such as handlers
+        self.config = cfg
+
+    def __str__(self):
+        return "%s %s (alias %s)" % (self.__class__.__name__, self.name, self.alias)
 

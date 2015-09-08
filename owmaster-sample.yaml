@@ -32,7 +32,7 @@ modules:
     # Any extra k/v tags to submit for each value
     extra_tags: bus=dev
 
-  pyowmaster.event.commandhandler:
+  pyowmaster.event.actionhandler:
     # Command execution handler; configuration is on each
     # device, nothing configurable here.
 

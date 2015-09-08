@@ -59,25 +59,25 @@ class OwStatisticsEvent(OwEventBase):
     def __str__(self):
         return "OwStatisticsEvent[%d: %s %s, %d]" % (self.timestamp, self.category, self.name, self.value)
 
-class OwSwitchEvent(OwEventBase):
+class OwPIOEvent(OwEventBase):
     """Describes an event which has occured on the specified OwDevice ID/channel.
 
     For momentary inputs, the value is always TRIGGED
     For toggle inputs, and outputs, the value is either ON or OFF.
 
-    The channel identifier is device specific, but is generally 'A' or 'B', or a numeric.
+    The channel should be a OwPIOChannel instance
     """
     OFF = "OFF"
     ON = "ON"
     TRIGGED = "TRIGGED"
 
     def __init__(self, timestamp, channel, value):
-        super(OwSwitchEvent, self).__init__(timestamp)
+        super(OwPIOEvent, self).__init__(timestamp)
         self.channel = channel
         self.value = value
 
     def __str__(self):
-        return "OwSwitchEvent[%d, %s, ch %s, %s]" % (self.timestamp, self.deviceId, self.channel, self.value)
+        return "OwPIOEvent[%d, %s, %s, %s]" % (self.timestamp, self.deviceId, self.channel, self.value)
 
 
 

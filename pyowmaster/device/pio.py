@@ -15,55 +15,97 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-from base import OwDevice
-from ..event.events import OwSwitchEvent
-from collections import namedtuple
+from base import OwChannel, OwDevice
+from pyowmaster.event.events import OwPIOEvent
+from pyowmaster.exception import ConfigurationError
+from collections import namedtuple, Mapping
 import logging
 
 # Modes of operation, per channel
-MODE_OUTPUT             = 0b00001
-MODE_INPUT              = 0b00010
-MODE_INPUT_MOMENTARY    = 0b00100 | MODE_INPUT
-MODE_INPUT_TOGGLE       = 0b01000 | MODE_INPUT
+PIO_MODE_OUTPUT             = 0b00001
+PIO_MODE_INPUT              = 0b00010
+PIO_MODE_INPUT_MOMENTARY    = 0b00100 | PIO_MODE_INPUT
+PIO_MODE_INPUT_TOGGLE       = 0b01000 | PIO_MODE_INPUT
 
-MODE_ACTIVE_LOW   = 0b00000
-MODE_ACTIVE_HIGH  = 0b10000
+PIO_MODE_ACTIVE_LOW   = 0b00000
+PIO_MODE_ACTIVE_HIGH  = 0b10000
 
+class OwPIOChannel(OwChannel):
+    """A OwChannel for devices with PIO"""
 
-def parse_switch_config(cfgstr):
-    cfg = 0
-    if cfgstr.find('output') != -1:
-        cfg |= MODE_OUTPUT
-    else:
-        # Default input
-        cfg |= MODE_INPUT
+    def __init__(self, num, name, cfg):
+        """Create a new OwPIOChannel, with a "mode" configuration parsed
+        from the cfg dict key 'mode'
 
-        if cfgstr.find('toggle') != -1:
-            cfg |= MODE_INPUT_TOGGLE
-        else:
-            # Default momentary
-            cfg |= MODE_INPUT_MOMENTARY
+        The mode string should be a combination of the following strings:
+            input momentary (default)
+            input toggle
+        or
+            output
 
+        combined with
+            active low (default)
+            active high
+
+        """
+        super(OwPIOChannel, self).__init__(num, name, cfg)
+
+        modestr = cfg.get('mode', 'input momentary')
+        self.mode = self.parse_pio_mode(modestr)
         # Todo: add "debounce" possibility, i.e. block input
         # for x seconds
-    
-    if cfgstr.find('active low') != -1:
-        cfg |= MODE_ACTIVE_LOW
-    elif cfgstr.find('active high') != -1:
-        cfg |= MODE_ACTIVE_HIGH
-    else:
-        # For input, "ON" means connected to GND (only option in parsite-powered nets)
-        # For outputs, "ON" means PIO transistor is active and the sensed output is LOW.
-        cfg |= MODE_ACTIVE_LOW
 
-    return cfg
+    def parse_pio_mode(self, mode):
+        cfg = 0
+        if mode.find('output') != -1:
+            cfg |= PIO_MODE_OUTPUT
+        else:
+            # Default input
+            cfg |= PIO_MODE_INPUT
 
-class OwSwitchDevice(OwDevice):
-    """Abstract base class for use with DS2406 and DS2408.
+            if mode.find('toggle') != -1:
+                cfg |= PIO_MODE_INPUT_TOGGLE
+            else:
+                # Default momentary
+                cfg |= PIO_MODE_INPUT_MOMENTARY
+
+        if mode.find('active low') != -1:
+            cfg |= PIO_MODE_ACTIVE_LOW
+        elif mode.find('active high') != -1:
+            cfg |= PIO_MODE_ACTIVE_HIGH
+        else:
+            # For input, "ON" means connected to GND (only option in parsite-powered nets)
+            # For outputs, "ON" means PIO transistor is active and the sensed output is LOW.
+            cfg |= PIO_MODE_ACTIVE_LOW
+
+        return cfg
+
+    def modestr(self):
+        if self.mode & PIO_MODE_OUTPUT == PIO_MODE_OUTPUT:
+            s = "output "
+        elif self.mode & PIO_MODE_INPUT == PIO_MODE_INPUT:
+            s = "input "
+        else:
+            raise ConfigurationError("Unknown mode %d" % self.mode)
+
+        if self.mode & PIO_MODE_ACTIVE_LOW == PIO_MODE_ACTIVE_LOW:
+            s+="active low"
+        elif self.mode & PIO_MODE_ACTIVE_HIGH == PIO_MODE_ACTIVE_HIGH:
+            s+="active high"
+
+        return s
+
+    def __str__(self):
+        return "%s %s (alias %s), mode=%s" % (self.__class__.__name__, self.name, self.alias, self.modestr())
+
+
+
+class OwPIODevice(OwDevice):
+    """Abstract base class for use with DS2406, DS2408 and similar PIO devices.
 
     Subclass must implement:
 
-        - A property named "channels" must exist, which tells how
+        - A property named "num_channels" must exist, which tells how
             many channels this device has.
 
         - Method _calculate_alarm_setting
@@ -71,23 +113,30 @@ class OwSwitchDevice(OwDevice):
     """
     def __init__(self, _alarm_supported, ow, id):
         """Subclass should set the _alarm_supported flag acordingly"""
-        super(OwSwitchDevice, self).__init__(ow, id)
+        super(OwPIODevice, self).__init__(ow, id)
 
         self.alarm_supported = _alarm_supported
         self.inital_setup_done = False
         self._last_sensed = None
 
     def config(self, config):
-        super(OwSwitchDevice, self).config(config)
+        super(OwPIODevice, self).config(config)
 
-        self.mode = []
-        for ch in range(self.channels):
-            chname = str(self._ch_translate(ch))
-            # Primarily read section with <device-id>:<ch.X>, fall back on <device-type>:<ch.X>
-            cfgval = config.get(('devices', (self.id, self.type), 'ch.' + chname), 'input momentary')
-            cfg = parse_switch_config(cfgval)
-#            self.log.debug("Ch %s configured as %d", chname, cfg)
-            self.mode.append(cfg)
+        self.channels = []
+        # For each channel on the device, create a OwPIOChannel object and put in channels list
+        for chnum in range(self.num_channels):
+            chname = str(self._ch_translate(chnum))
+            # Primarily read section with <device-id>:<ch.X>,
+            # fall back on <device-type>:<ch.X>
+            # The value should be a mode-string, or a dict which is passed to  OwPIOChannel
+            cfgval = config.get(('devices', (self.id, self.type), 'ch.' + chname), {})
+            if isinstance(cfgval, str):
+                cfgval = {'mode': cfgval}
+
+            sw = OwPIOChannel(chnum, chname, cfgval)
+            self.log.debug("Ch %d configured as %s", chnum, sw)
+
+            self.channels.append(sw)
 
         if self.alarm_supported:
             self._calculate_alarm_setting()
@@ -95,8 +144,8 @@ class OwSwitchDevice(OwDevice):
             # Apply alarm config directly
             self.check_alarm_config()
         else:
-            for m in self.mode:
-                if (m & MODE_INPUT) == MODE_INPUT:
+            for m in self.channels:
+                if (m.mode & PIO_MODE_INPUT) == PIO_MODE_INPUT:
                     self.log.warn("Channel configured as Input, but this device does not have alarm support. No polling implemented!")
                     break
 
@@ -128,18 +177,18 @@ class OwSwitchDevice(OwDevice):
 #        elif self._last_sensed == None:
 #            self.log.debug("last_sensed inited %d", sensed)
         self._last_sensed = sensed
-    
+
     def on_alarm(self, timestamp):
         if not self.alarm_supported:
             self.log.error("%s: Ignoring alarm, device should not get alarms!", self)
             return
-            
+
         if self.check_alarm_config():
             self.log.warn("%s: Ignoring alarm, device was not ready", self)
             return
 
         # Read latch + sensed
-        # XXX: in owlib DS2406 code we read register, 
+        # XXX: in owlib DS2406 code we read register,
         # and could then read the uncached sensed.byte to get
         # the truely same sensed.
         # For DS2408 however, these are separate reads operations,
@@ -168,32 +217,34 @@ class OwSwitchDevice(OwDevice):
         return int(ch)
 
     def _handle_alarm(self, timestamp, latch, sensed, last_sensed):
-        for ch in range(self.channels):
-            mode = self.mode[ch]
-            is_input = ((mode & MODE_INPUT) == MODE_INPUT)
-            is_output = ((mode & MODE_OUTPUT) == MODE_OUTPUT)
+        for ch in self.channels:
+            chnum = ch.num
+            mode = ch.mode
+            is_input = ((mode & PIO_MODE_INPUT) == PIO_MODE_INPUT)
+            is_output = ((mode & PIO_MODE_OUTPUT) == PIO_MODE_OUTPUT)
 
             # 1 = True
             # 0 = False
-            ch_latch = latch & (1<<ch) != 0
+            ch_latch = latch & (1<<chnum) != 0
             if not ch_latch:
                 # Our latch was not triggered
                 continue
 
-            ch_sensed = sensed & (1<<ch) != 0
-            ch_active_level = (mode & MODE_ACTIVE_HIGH) == MODE_ACTIVE_HIGH
-            ch_last_sensed = last_sensed & (1<<ch) != 0 if last_sensed != None else None
+            ch_sensed = sensed & (1<<chnum) != 0
+            ch_active_level = (mode & PIO_MODE_ACTIVE_HIGH) == PIO_MODE_ACTIVE_HIGH
+            ch_last_sensed = last_sensed & (1<<chnum) != 0 if last_sensed != None else None
             ch_has_changed = ch_last_sensed != ch_sensed if ch_last_sensed != None else None
 
+            event_type = None
             if is_output or \
-                (is_input and ((mode & MODE_INPUT_TOGGLE) == MODE_INPUT_TOGGLE)):
+                (is_input and ((mode & PIO_MODE_INPUT_TOGGLE) == PIO_MODE_INPUT_TOGGLE)):
                 if ch_has_changed != False:
                     if ch_sensed == ch_active_level:
-                        self.emitEvent(OwSwitchEvent(timestamp, self._ch_translate(ch), OwSwitchEvent.ON))
+                        event_type = OwPIOEvent.ON
                     else:
-                        self.emitEvent(OwSwitchEvent(timestamp, self._ch_translate(ch), OwSwitchEvent.OFF))
+                        event_type = OwPIOEvent.OFF
 
-            elif (mode & MODE_INPUT_MOMENTARY) == MODE_INPUT_MOMENTARY:
+            elif (mode & PIO_MODE_INPUT_MOMENTARY) == PIO_MODE_INPUT_MOMENTARY:
                 # Two scenarios we must handle (active_level=1):
                 #   1. Button is pressed [latch triggers]
                 #   2. Button is released [latch already triggered, no change]
@@ -207,11 +258,17 @@ class OwSwitchDevice(OwDevice):
                 # In the second scenario, we want to avoid trig on the second latch
 
                 if ch_sensed == ch_active_level or ch_last_sensed != ch_active_level:
-                    self.emitEvent(OwSwitchEvent(timestamp, self._ch_translate(ch), OwSwitchEvent.TRIGGED))
-                else:
-                    self.log.debug("%s: channel %d latch change ignored", self, ch)
+                    event_type = OwPIOEvent.TRIGGED
             else:
-                raise RuntimeError("Invalid input mode %d for channel %d" % (mode, ch))
+                raise RuntimeError("Invalid input mode %d for channel %s" % (mode, ch))
+
+            if event_type:
+                event = OwPIOEvent(timestamp, ch, event_type)
+                self.log.debug("%s: ch %s event: %s", \
+                    self, ch.name, event_type)
+                self.emitEvent(event)
+            else:
+                self.log.debug("%s: channel %s latch change ignored", self, ch)
 
     def check_alarm_config(self):
         """Ensure the alarm property is configured as intended.
@@ -226,7 +283,7 @@ class OwSwitchDevice(OwDevice):
             self.owWrite('latch.BYTE', '1')
 
             return True
-        
+
         self.inital_setup_done = True
         return False
 
@@ -239,17 +296,22 @@ class OwSwitchDevice(OwDevice):
 
         If channel is not configured as output, an exception is thrown.
 
-        Note that "active low" refers to the actual logic level, i.e this will 
+        Note that "active low" refers to the actual logic level, i.e this will
         write PIO.xx 1, to enable the transistor, pulling down the line, and activating
         something by grounding the pin (low).
         """
-        ch = self._ch_translate_rev(channel)
-        mode = self.mode[ch]
+        if isinstance(channel, OwPIOChannel):
+            ch = channel
+        else:
+            ch_num = self._ch_translate_rev(channel)
+            ch = self.channels[ch_num]
 
-        if not ((mode & MODE_OUTPUT) == MODE_OUTPUT):
-            raise Exception("Channel not configured as output")
+        mode = ch.mode
 
-        active_high = (mode & MODE_ACTIVE_HIGH) == MODE_ACTIVE_HIGH
+        if not ((mode & PIO_MODE_OUTPUT) == PIO_MODE_OUTPUT):
+            raise InvalidChannelError("Channel not configured as output")
+
+        active_high = (mode & PIO_MODE_ACTIVE_HIGH) == PIO_MODE_ACTIVE_HIGH
         if (value and active_high) or (not value and not active_high):
             # PIO off => external pull-up possible => "high"
             out_value = 0
@@ -257,7 +319,6 @@ class OwSwitchDevice(OwDevice):
             # PIO on => pulled to ground => "low"
             out_value = 1
 
-        channel = self._ch_translate(ch)
-        self.log.info("%s: Writing PIO.%s = %d", self, channel, out_value)
-        self.owWrite('PIO.%s' % channel, out_value)
+        self.log.info("%s: Writing PIO.%s = %d", self, ch.name, out_value)
+        self.owWrite('PIO.%s' % ch.name, out_value)
 

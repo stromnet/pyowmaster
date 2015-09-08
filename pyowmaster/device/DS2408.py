@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 from base import OwDevice
-from switch_base import *
+from pio import *
 
 def register(factory):
     factory.register("29", DS2408)
@@ -28,11 +28,11 @@ ALARM_SOURCE_LATCH_OR   = 1
 ALARM_SOURCE_PIO_AND    = 2
 ALARM_SOURCE_LATCH_AND  = 3
 
-class DS2408(OwSwitchDevice):
+class DS2408(OwPIODevice):
     def __init__(self, ow, id):
         super(DS2408, self).__init__(True, ow, id)
 
-        self.channels = 8
+        self.num_channels = 8
 
         # Only supported right now
         self.alarm_source = ALARM_SOURCE_LATCH_OR
@@ -46,20 +46,19 @@ class DS2408(OwSwitchDevice):
             src_is_latch = self.alarm_source in (ALARM_SOURCE_LATCH_OR, ALARM_SOURCE_LATCH_AND)
 
             # Construct XYYYYYYYY
-            # where X is source + logical term (PIO or latch, AND or OR)
-            # and Y is per channel selection
+            # where X is trigger source + logical term (PIO or latch, AND or OR)
+            # and Y is per channel selection (0,1=ignore, 2=low, 3=high)
             # Low order Y (last in string) is ch 0
             alarm_str = "%d" % self.alarm_source
-            for ch in range(self.channels, 0, -1):
-                ch = ch - 1
+            for ch in self.channels:
+                chnum = ch.num
                 
-                # src_channel 1 for A, 2 for B, 3 for A+B. thus, bitmask
                 if src_is_latch:
                     # Interested, and it's latch. Set Selected HIGH
                     alarm_str += "3"
                 else:
                     # PIO as source, determine high/low polarity 
-                    if ((self.mode[ch] & MODE_ACTIVE_HIGH) != 0):
+                    if ((ch.mode & MODE_ACTIVE_HIGH) != 0):
                         alarm_str += "3" # Selected HIGH
                     else:
                         alarm_str += "2" # Selected LOW
@@ -88,6 +87,6 @@ class DS2408(OwSwitchDevice):
         if super(DS2408, self).check_alarm_config():
             return True
 
-        # Return True if we did POR fix
+        # Return True if we did POR fix, meaning ignore alarm condition
         return por != 0
 

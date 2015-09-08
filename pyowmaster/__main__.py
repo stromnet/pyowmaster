@@ -18,11 +18,14 @@
 #
 import logging, logging.config
 import ConfigParser, sys, yaml
+from yaml.scanner import ScannerError
 import time
 
+import pyownet.protocol
 from pyownet.protocol import *
 from . import OwMaster
 from ecollections import EnhancedMapping
+from exception import *
 
 class Main:
     def __init__(self):
@@ -31,7 +34,8 @@ class Main:
 
     def run(self, cfgfile=None, configure_logging=True):
         self.cfgfile = cfgfile
-        self.reload_config()
+        if not self.reload_config():
+            return
 
         if configure_logging:
             self.setup_logging()
@@ -45,14 +49,14 @@ class Main:
             elif temp_unit == 'F': flags |= FLG_TEMP_F
             elif temp_unit == 'K': flags |= FLG_TEMP_K
             elif temp_unit == 'R': flags |= FLG_TEMP_R
-            else: raise Exception("Invalid temperature_unit")
-            #flags| = FLG_PERSISTENCE
+            else: raise ConfigurationError("Invalid temperature_unit")
+            persistent = False # XXX: switch_base must do setPIO in main thread!
 
             ow_port = self.cfg.get('owmaster:owserver_port', 4304)
             tries = 0
             while True:
                 try:
-                    self.owm = OwMaster(OwnetProxy(port=ow_port,verbose=False, flags=flags), self.cfg)
+                    self.owm = OwMaster(pyownet.protocol.proxy(port=ow_port,verbose=False, flags=flags, persistent=persistent), self.cfg)
                     break
                 except ConnError, e:
                     tries+=1
@@ -82,20 +86,28 @@ class Main:
         if hasattr(self, 'log'):
             self.log.debug("Reloading %s", self.cfgfile)
 
-        with open(self.cfgfile) as f:
-            cfg = yaml.load(f)
-            if not cfg:
-                cfg = {}
+        try:
+            with open(self.cfgfile) as f:
+                cfg = yaml.load(f)
+                if not cfg:
+                    cfg = {}
 
-            self.cfg = EnhancedMapping(cfg)
+                self.cfg = EnhancedMapping(cfg)
+        except ScannerError as e:
+            if hasattr(self, 'log'):
+                self.log.error("Failed to load configuration file %s: %s", self.cfgfile, e)
+            else:
+                print("Failed to load configuration file %s: %s" % (self.cfgfile, e))
+                return False
 
-        import pprint
-        pprint.pprint(self.cfg)
+        #import pprint
+        #pprint.pprint(self.cfg)
 
         if self.owm:
             self.owm.refresh_config(self.cfg)
             self.setup_logging(True)
 
+        return True
 
 import code, traceback, signal
 

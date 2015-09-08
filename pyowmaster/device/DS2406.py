@@ -16,7 +16,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 from base import OwDevice
-from switch_base import OwSwitchDevice, MODE_ACTIVE_HIGH
+from pio import *
+from pyowmaster.exception import ConfigurationError
 
 def register(factory):
     factory.register("12", DS2406)
@@ -31,25 +32,31 @@ CH_NAMES = ['A', 'B']
 CH_IDS = {'A':0, 'B':1}
 
 
-class DS2406(OwSwitchDevice):
+class DS2406(OwPIODevice):
     def __init__(self, ow, id):
         super(DS2406, self).__init__(True, ow, id)
 
         # Cache for property channels
-        self._channels = 0
+        self._num_channels = 0
 
         # Not configurable right now; alarm handler does not support other than latch.
         self.alarm_source = ALARM_SOURCE_LATCH
 
-    @property
-    def channels(self):
-        """Returns the number of channels this devices has"""
-        if self._channels:
-            return self._channels
+    def config(self, config):
+        # Allow config to specify channels; mostly for being able to test config handling
+        # when device is not online since we normally read this from device
+        self._num_channels = config.get(('devices', self.id , 'num_channels'), 0)
+        super(DS2406, self).config(config)
 
-        self._channels = int(self.owReadStr('channels'))
-        self.log.debug("%s: channels: %d", self, self._channels)
-        return self._channels
+    @property
+    def num_channels(self):
+        """Returns the number of channels this devices has"""
+        if self._num_channels:
+            return self._num_channels
+
+        self._num_channels = int(self.owReadStr('channels'))
+        self.log.debug("%s: channels: %d", self, self._num_channels)
+        return self._num_channels
 
     def _calculate_alarm_setting(self):
         """Based on the alarm_source instance property and the channel modes,
@@ -61,14 +68,15 @@ class DS2406(OwSwitchDevice):
             src_is_latch = (self.alarm_source == ALARM_SOURCE_LATCH)
             src_pol = 1 if src_is_latch else None
 
-            for ch in range(self.channels):
-                src_channel |= (1<<ch)
+            for ch in self.channels:
+                chnum = ch.num
+                src_channel |= (1<<chnum)
                 if not src_is_latch:
                     # Sensed or PIO as source, determine high/low polarity 
-                    pol = 1 if ((self.mode[ch] & MODE_ACTIVE_HIGH) != 0) else 0
+                    pol = 1 if ((ch.mode & PIO_MODE_ACTIVE_HIGH) != 0) else 0
 
                     if src_pol != None and src_pol != pol:
-                        raise ValueError("Cannot mix active high/low polarity when using alarm source other than latch")
+                        raise ConfigurationError("Cannot mix active high/low polarity when using alarm source other than latch")
 
                     src_pol = pol
 

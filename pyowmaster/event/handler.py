@@ -59,7 +59,10 @@ class OwEventDispatcher(OwEventHandler):
     def refresh_config(self, root_config):
         """Refresh config for all handlers"""
         for h in self.handlers:
-            h._update_config(root_config)
+            try:
+                h._update_config(root_config)
+            except:
+                self.log.error("Unhandled exception configuring event handler %s", h, exc_info=True)
 
     def handle_event(self, event):
         """Take the event, and let each registered handler deal with it.

@@ -361,8 +361,11 @@ class DeviceInventory(object):
         for dev_id in configured_ids:
             # May contain non-IDs too, such as common settings per device-type, or
             # aliases section.
-            if not RE_DEV_ID.match(dev_id):
-                continue
+            try:
+                if not RE_DEV_ID.match(dev_id):
+                    continue
+            except TypeError as e:
+                raise ConfigurationError("Invalid device ID %s: %s" % (dev_id, e))
 
             # Only create devices which are not yet known
             if dev_id not in self.devices:
@@ -387,7 +390,10 @@ class DeviceInventory(object):
                 # but failed to find it, or if it failed to configure the remote device.
                 # It should try later!
                 self.log.warn("Failed to configure %s, OW failure: %s",
-                        dev_id, e)
+                        dev, e)
+            except OwMasterException:
+                self.log.error("Failed to configure device %s",
+                        dev, exc_info=True)
 
             if dev.alias:
                 self._add_alias(dev.alias, dev_id)
