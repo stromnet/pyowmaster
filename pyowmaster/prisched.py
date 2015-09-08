@@ -18,7 +18,7 @@ Lots of code copied from base sched implementation. The main usage differences a
 
 """
 #
-# Copyright 2014 Johan Ström
+# Copyright 2014-2015 Johan Ström
 #
 # This python package is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by

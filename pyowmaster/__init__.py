@@ -2,7 +2,7 @@
 """pyowmaster implements a 1-Wire master, where the main focus is on providing low-latency input support"""
 
 #
-# Copyright 2014 Johan Ström
+# Copyright 2014-2015 Johan Ström
 #
 # This python package is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
