@@ -21,11 +21,13 @@
 from __future__ import print_function
 from pyownet.protocol import bytes2str,str2bytez,ConnError,OwnetError,ProtocolError
 import device
+import owidutil
 from device.base import OwBus
 from device.stats import OwStatistics, OwStatisticsEvent
 from event.handler import OwEventDispatcher
+from exception import ConfigurationError, OwMasterException
 import importlib
-import time, re
+import time
 import traceback
 import logging
 import prisched
@@ -65,6 +67,8 @@ class OwMaster(object):
 
         # Dispatcher for any events (counters, temp readings, switch changes etc)
         self.eventDispatcher = OwEventDispatcher()
+        # Queue events until all modules have been inited; 
+        self.eventDispatcher.pause()
 
         # Init our own statistics tracker
         self.stats = MasterStatistics(self.queueLowPrio, self.eventDispatcher,
@@ -100,6 +104,8 @@ class OwMaster(object):
         self.log.debug("Configured for scanning every %.2fs, alarm scanning every %.1fs",
                 self.scanInterval[SCAN_FULL],
                 self.scanInterval[SCAN_ALARM])
+
+        self.eventDispatcher.resume()
 
     def _mainloop(self):
         self.simultaneousTemperaturePending = False
@@ -362,7 +368,7 @@ class DeviceInventory(object):
             # May contain non-IDs too, such as common settings per device-type, or
             # aliases section.
             try:
-                if not RE_DEV_ID.match(dev_id):
+                if not owidutil.is_owid(dev_id):
                     continue
             except TypeError as e:
                 raise ConfigurationError("Invalid device ID %s: %s" % (dev_id, e))
@@ -404,7 +410,7 @@ class DeviceInventory(object):
         As the name indicates, a plain ID can be given, or a path which contains an ID.
         If the devices is not found, it is created.
         """
-        dev_id = idFromPath(idOrPath)
+        dev_id = owidutil.owid_from_path(idOrPath)
         if not dev_id:
             # Invalid ID, could be an alias
             # XXX: If any device has an alias, we will miss it.
@@ -461,21 +467,39 @@ class DeviceInventory(object):
 
         self.aliases[alias] = dev_id
 
-    def find_alias(self, alias_or_id):
-        """Find an existing Device object by 1-wire ID OR alias"""
-        device = self.devices.get(alias_or_id, None)
-        if device:
-            return device
+    def resolve_target(self, tgt):
+        """Find an existing Device object by 1-wire ID OR alias.
 
-        devId = self.aliases.get(alias_or_id, None)
-        if not devId:
-            return None
+        Additionally the target_str can contain a .<channel id> suffix,
+        in which case a channel is returned as well.
+        
+        Returns tuple of (dev, channel), where channel should be a OwChannel
+        instance if it was found. If channel id was specified, but no
+        matching channel was found, channel is False
+        """
+        (alias_or_id, ch_name) = owidutil.parse_target(tgt)
+        if alias_or_id == None:
+            return (None, None)
 
-        device = self.devices.get(devId, None)
-        if not device:
-            raise Exception("Alias %s pointed to device %s which was not found" % (alias_or_id, devId))
+        dev = self.devices.get(alias_or_id, None)
+        if not dev:
+            # Try to lookup via alias
+            dev_id = self.aliases.get(alias_or_id, None)
+            if dev_id:
+                dev = self.devices.get(dev_id, None)
+                if not dev:
+                    raise Exception("Alias %s pointed to device %s which was not found" % (alias_or_id, dev_id))
 
-        return device
+        # Should have a device now.
+        if not ch_name or not hasattr(dev, 'channels'):
+            return (dev, None)
+
+        # Lookup channel
+        for c in dev.channels:
+            if c.num == ch_name or c.name == ch_name:
+                return (dev, c)
+
+        return (dev, False)
 
     def list(self, skipList=None):
         """Return a list of all known devices.
@@ -529,7 +553,7 @@ class MasterStatistics:
         """
         if key not in self.counters:
             if '.' not in key:
-                raise Error("Statistics key should have the format <category>.<name>")
+                raise Exception("Statistics key should have the format <category>.<name>")
 
             self.counters[key] = 0
 
@@ -548,15 +572,4 @@ class MasterStatistics:
             self.eventDispatcher.handle_event(ev)
 
         self.queue(self.reportInterval, self.report)
-
-
-RE_DEV_ID = re.compile('([A-F0-9][A-F0-9]\.[A-F0-9]{12})')
-def idFromPath(idOrPath):
-    """Tries to interpret an 1-Wire ID from a path string"""
-    # Ignore non-ID names (such as aliases)
-    m = RE_DEV_ID.search(idOrPath)
-    if not m:
-        return None
-
-    return str(m.group(1))
 

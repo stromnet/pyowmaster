@@ -23,43 +23,41 @@ import pyowmaster.device.pio as pio
 
 class SetPioAction(EventAction):
     """EventAction which tries to alter another PIO output port"""
-    def __init__(self, inventory, dev, channel, event_type, method_name, action_config, single_value):
-        super(SetPioAction, self).__init__(inventory, dev, channel, event_type, method_name, action_config, single_value)
+    def __init__(self, inventory, dev, channel, event_type, method, action_config, single_value):
+        super(SetPioAction, self).__init__(inventory, dev, channel, event_type, method, action_config, single_value)
 
         if single_value:
-            # resolve single_value as <dev-id|alias>.<ch>
-            (tgt_dev, tgt_ch_id) = self.parse_target(single_value)
-            self.tgt_dev = tgt_dev
+            tgt = single_value
         else:
-            tgt_dev_id = action_config.get('target', None)
+            tgt = action_config.get('target', None)
 
-            self.tgt_dev = self.inventory.find(tgt_dev_id)
-            if not self.tgt_dev:
-                raise ConfigurationError("Cannot find target device '%s'", tgt_dev_id)
+        if not tgt:
+            raise ConfigurationError("No target configured for action")
 
-            tgt_ch_id = action_config.get('target_channel', None)
+        # resolve single_value as <dev-id|alias>.<ch>
+        (tgt_dev, tgt_ch) = self.parse_target(tgt)
 
         # Validate channel
-        self.tgt_ch = None
-        for ch in self.tgt_dev.channels:
-            if ch.name == tgt_ch_id:
-                if not ((ch.mode & pio.PIO_MODE_OUTPUT) == pio.PIO_MODE_OUTPUT):
-                    raise ConfigurationError("Channel %s not configured as output" % ch.name)
+        if not tgt_ch:
+            raise ConfigurationError("No valid channel found from %s" % tgt)
 
-                self.tgt_ch = ch
-                break
+        if not tgt_ch.is_output:
+            raise ConfigurationError("Device %s, channel %s not configured as output. Cannot use as setpio target" % (tgt_dev, ch))
 
-        if not self.tgt_ch:
-            raise ConfigurationError("Cannot find channel %s on device %s" % (tgt_ch_id, self.tgt_dev))
+        self.tgt_dev = tgt_dev
+        self.tgt_ch = tgt_ch
 
-        # Normalise value Switch is True/False, where 'on' == True
+        # Supported methods are on and off.
+        if len(method) != 1:
+            raise ConfigurationError("Invalid setpio method '%s' on device %s ch %s" % ('.'.join(method), dev, channel))
+
+        method_name = method[0]
         if method_name not in ('on', 'off'):
             raise ConfigurationError("Invalid setpio method '%s' on device %s ch %s" % (method_name, dev, channel))
 
         self.tgt_method = method_name
 
     def run(self, event):
-        self.log.info("Setting value of %s ch %s to %s", self.tgt_dev, self.tgt_ch, self.tgt_method)
         try:
             value = {'on':True, 'off':False}[self.tgt_method]
             self.tgt_dev.set_output(self.tgt_ch, value)

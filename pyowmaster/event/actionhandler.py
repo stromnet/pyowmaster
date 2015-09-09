@@ -110,6 +110,7 @@ class ActionEventHandler(ThreadedOwEventHandler):
             self.log.warn("One or more error occured during action initialization")
 
     def handle_event_blocking(self, event):
+        # XXX: Only PIO events
         if not isinstance(event, OwPIOEvent):
             return
 
@@ -122,7 +123,7 @@ class ActionEventHandler(ThreadedOwEventHandler):
 
         for action in actions:
             try:
-                action.run(event)
+                action.handle_event(event)
             except:
                 self.log.error("Failed to execute action %s", str(action), exc_info=True)
 
@@ -151,25 +152,25 @@ class ActionFactory(object):
 
         will tell the 'pio' module to run action 'on' for the specified device.
         """
+        print action_config
 
         if len(action_config) == 1 and 'action' not in action_config:
             action_target = action_config.keys()[0]
             single_value = action_config.values()[0]
         else:
             action_target = action_config.get('action', None)
+            single_value = None
 
         if not action_target or type(action_target) is not str:
             raise ConfigurationError("Action config must be either single-key dict, or have 'action' key with a string value")
 
-        # Split action_target name 
-        action_target = action_target.split('.', 2)
+        # Split action_target name into module and method (optionally multiple)
+        action_target = action_target.split('.')
         action_module = action_target[0]
-        method_name = None
-        if len(action_target) > 1:
-            method_name = action_target[1]
+        action_method = action_target[1:]
 
         class_ref = self.get_action_module(action_module)
-        a = class_ref(self.inventory, dev, channel, event_type, method_name, action_config, single_value)
+        a = class_ref(self.inventory, dev, channel, event_type, action_method, action_config, single_value)
         return a
 
     def get_action_module(self, action_module):

@@ -52,6 +52,9 @@ class OwEventDispatcher(OwEventHandler):
         self.log = logging.getLogger(type(self).__name__)
         self.handlers = []
 
+        self.paused = False
+        self.pause_queue = []
+
     def add_handler(self, handler):
         """Add a handler to be executed"""
         self.handlers.append(handler)
@@ -64,10 +67,33 @@ class OwEventDispatcher(OwEventHandler):
             except:
                 self.log.error("Unhandled exception configuring event handler %s", h, exc_info=True)
 
+    def pause(self):
+        """Pause the dispatching of any events, and let the be queued up instead"""
+        self.paused = True
+
+    def resume(self):
+        """Resume event dispatching, immediately dispatch any queued up events"""
+        self.paused = False
+        for event in self.pause_queue:
+            self._emit_event(event)
+
+        self.pause_queue = []
+
     def handle_event(self, event):
         """Take the event, and let each registered handler deal with it.
-        If an exception is thrown, we log the exception but do not let it take us down"""
+        If an exception is thrown, we log the exception but do not let it take us down.
+        If the dispatcher is paused, we queue the event"""
 
+        if self.paused:
+            if len(self.pause_queue) >= 100:
+                self.log.warn("Pause queue is %d entries long, dropping oldest", len(self.pause_queue))
+                self.pause_queue.pop(0)
+
+            self.pause_queue.append(event)
+        else:
+            self._emit_event(event)
+
+    def _emit_event(self, event):
         self.log.debug("Handling %s", event)
         for h in self.handlers:
             try:
@@ -93,7 +119,7 @@ class ThreadedOwEventHandler(OwEventHandler):
 
     def handle_event_blocking(self, event):
         """Allow the subclass to handle the event, blocking allowed here"""
-        raise Error("handle_event_blocking must be implemented")
+        raise Exception("handle_event_blocking must be implemented")
 
     def handle_event(self, event):
         """Puts the event onto the thread queue"""

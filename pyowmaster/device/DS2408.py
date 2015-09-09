@@ -58,7 +58,7 @@ class DS2408(OwPIODevice):
                     alarm_str += "3"
                 else:
                     # PIO as source, determine high/low polarity 
-                    if ((ch.mode & MODE_ACTIVE_HIGH) != 0):
+                    if ch.is_active_high:
                         alarm_str += "3" # Selected HIGH
                     else:
                         alarm_str += "2" # Selected LOW

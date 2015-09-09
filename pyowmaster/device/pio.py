@@ -17,9 +17,9 @@
 #
 from base import OwChannel, OwDevice
 from pyowmaster.event.events import OwPIOEvent
-from pyowmaster.exception import ConfigurationError
+from pyowmaster.exception import ConfigurationError, InvalidChannelError
 from collections import namedtuple, Mapping
-import logging
+import logging, time
 
 # Modes of operation, per channel
 PIO_MODE_OUTPUT             = 0b00001
@@ -29,6 +29,9 @@ PIO_MODE_INPUT_TOGGLE       = 0b01000 | PIO_MODE_INPUT
 
 PIO_MODE_ACTIVE_LOW   = 0b00000
 PIO_MODE_ACTIVE_HIGH  = 0b10000
+
+def test_bits(value, mask):
+    return (value & mask) == mask
 
 class OwPIOChannel(OwChannel):
     """A OwChannel for devices with PIO"""
@@ -78,22 +81,53 @@ class OwPIOChannel(OwChannel):
             # For outputs, "ON" means PIO transistor is active and the sensed output is LOW.
             cfg |= PIO_MODE_ACTIVE_LOW
 
+
         return cfg
 
     def modestr(self):
-        if self.mode & PIO_MODE_OUTPUT == PIO_MODE_OUTPUT:
+        if self.is_output:
             s = "output "
-        elif self.mode & PIO_MODE_INPUT == PIO_MODE_INPUT:
+        elif self.is_input:
             s = "input "
+            if self.is_input_toggle:
+                s += "toggle "
         else:
             raise ConfigurationError("Unknown mode %d" % self.mode)
 
-        if self.mode & PIO_MODE_ACTIVE_LOW == PIO_MODE_ACTIVE_LOW:
+        if self.is_active_low:
             s+="active low"
-        elif self.mode & PIO_MODE_ACTIVE_HIGH == PIO_MODE_ACTIVE_HIGH:
+        elif self.is_active_high:
             s+="active high"
 
         return s
+
+    @property
+    def is_output(self):
+        return test_bits(self.mode, PIO_MODE_OUTPUT)
+
+    @property
+    def is_input(self):
+        return test_bits(self.mode, PIO_MODE_INPUT)
+
+    @property
+    def is_input_momentary(self):
+        return test_bits(self.mode, PIO_MODE_INPUT_MOMENTARY)
+
+    @property
+    def is_input_toggle(self):
+        return test_bits(self.mode, PIO_MODE_INPUT_TOGGLE)
+
+    @property
+    def is_active_high(self):
+        return test_bits(self.mode, PIO_MODE_ACTIVE_HIGH)
+
+    @property
+    def is_active_low(self):
+        return not test_bits(self.mode, PIO_MODE_ACTIVE_HIGH)
+
+    def is_set(self, value):
+        """Given a bitmask value, return this channels bit position value as a True(1)/False(0)"""
+        return (value & (1 << self.num)) != 0
 
     def __str__(self):
         return "%s %s (alias %s), mode=%s" % (self.__class__.__name__, self.name, self.alias, self.modestr())
@@ -124,6 +158,7 @@ class OwPIODevice(OwDevice):
 
         self.channels = []
         # For each channel on the device, create a OwPIOChannel object and put in channels list
+        # pylint: ignore num_channels
         for chnum in range(self.num_channels):
             chname = str(self._ch_translate(chnum))
             # Primarily read section with <device-id>:<ch.X>,
@@ -176,7 +211,29 @@ class OwPIODevice(OwDevice):
 #
 #        elif self._last_sensed == None:
 #            self.log.debug("last_sensed inited %d", sensed)
+
         self._last_sensed = sensed
+
+    def _emit_init_state(self, sensed):
+        """During alarm reconfigure (due to startup, or device reset), emit special events
+        for all Toggle inputs, and outputs, to let global system know it may have changed"""
+        timestamp = time.time()
+        for ch in self.channels:
+            if not ch.is_input_toggle and not ch.is_output:
+                continue
+
+            ch_sensed = ch.is_set(sensed)
+            ch_active_level = ch.is_active_high
+
+            if ch_sensed == ch_active_level:
+                event_type = OwPIOEvent.ON
+            else:
+                event_type = OwPIOEvent.OFF
+
+            event = OwPIOEvent(timestamp, ch, event_type, True)
+            self.log.debug("%s: ch %s event: %s", \
+                self, ch.name, event_type)
+            self.emitEvent(event)
 
     def on_alarm(self, timestamp):
         if not self.alarm_supported:
@@ -275,17 +332,24 @@ class OwPIODevice(OwDevice):
         Returns True if change was applied, False if it was correct"""
         alarm = self.owReadStr('set_alarm', uncached=True)
 
+        reconfigured = False
         if alarm != self.wanted_alarm:
-            self.log.log((logging.WARNING if self.inital_setup_done else logging.INFO), "%s: reconfiguring alarm from %s to %s", self, alarm, self.wanted_alarm)
+            self.log.log((logging.WARNING if self.inital_setup_done else logging.INFO),
+                    "%s: reconfiguring alarm from %s to %s", self, alarm, self.wanted_alarm)
 
             self.owWrite('set_alarm', self.wanted_alarm)
             # And clear any alarm if already set
             self.owWrite('latch.BYTE', '1')
 
-            return True
+            reconfigured = True
+
+        if reconfigured or not self.inital_setup_done:
+            # Emit current state of all devices
+            sensed = int(self.owReadStr('sensed.BYTE', uncached=True))
+            self._emit_init_state(sensed)
 
         self.inital_setup_done = True
-        return False
+        return reconfigured
 
     def set_output(self, channel, value):
         """Control a channel configured as output, setting the new value to ON or OFF.

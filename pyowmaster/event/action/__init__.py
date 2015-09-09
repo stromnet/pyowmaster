@@ -17,41 +17,41 @@
 #
 import logging, re
 from pyowmaster.exception import *
-
-RE_DEV_CHANNEL = re.compile('([A-F0-9][A-F0-9]\.[A-F0-9]{12})\.([0-9AB])')
-RE_ALIAS_CHANNEL = re.compile('([A-Za-z0-9\-\_]+)\.([0-9AB])')
+import pyowmaster.owidutil
 
 class EventAction(object):
-    """Base cloass to describe a parsed action which is to be executed when events on a specific device/channel/type occurs"""
-    def __init__(self, inventory, dev, channel, event_type, method_name, action_config, single_value):
+    """Base class to describe a parsed action which is to be executed when events on a specific device/channel/type occurs"""
+    def __init__(self, inventory, dev, channel, event_type, method, action_config, single_value):
         """This signature represents how the ActionFactory tries to init each action"""
         self.inventory = inventory
         self.log = logging.getLogger(type(self).__name__)
+        
+        # Check if we should react to is_reset values (default true)
+        self.include_reset_events = action_config.get('include_reset', False)
+
+        # It's also possible to add '.include_reset' suffix to the method name
+        if "include_reset" in method:
+            self.include_reset_events = True
+            del method[method.index('include_reset')]
 
     def parse_target(self, tgt):
         """Tries to parse a target string in the form <dev-id | alias>.<channel> into a valid
         device instance and string channel value (channel is not parsed nor verified)."""
-        m = RE_DEV_CHANNEL.match(tgt)
-        if m:
-            dev_id = m.group(1)
-            ch = m.group(2)
+        (target_dev, ch) = self.inventory.resolve_target(tgt)
 
-            target_dev = self.inventory.find(dev_id)
-            if not target_dev:
-                raise ConfigurationError("Cannot find device '%s'", dev_id)
-        else:
-            # Try alias
-            m = RE_ALIAS_CHANNEL.match(tgt)
-            if not m:
-                raise ConfigurationError("Cannot resolve device target '%s'", tgt)
+        if not target_dev:
+            raise ConfigurationError("Cannot find device '%s'", tgt)
 
-            alias = m.group(1)
-            ch = m.group(2)
-
-            target_dev = self.inventory.find_alias(alias)
-            if not target_dev:
-                raise ConfigurationError("Cannot find device '%s'", alias)
+        if ch == False:
+            raise ConfigurationError("Device has no channel as indicated in target '%s'", tgt)
 
         return (target_dev, ch)
 
+    def handle_event(self, event):
+        if not self.include_reset_events and event.is_reset:
+            self.log.debug("%s: Ignoring event, marked as reset-value", self)
+            return
+
+        self.log.debug("%s: Executing action", self)
+        self.run(event)
 

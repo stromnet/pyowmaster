@@ -19,17 +19,18 @@
 class OwEventBase(object):
     """Base object for any events sent emitted from
     1-Wire devices as result of alarms or regular polling"""
-    def __init__(self, timestamp):
+    def __init__(self, timestamp, is_reset):
         self.timestamp = timestamp
         self.deviceId = None
+        self.is_reset = is_reset
 
     def __str__(self):
         return "OwEvent[%d: %s, unknown]" % (self.timestamp, self.deviceId)
 
 class OwCounterEvent(OwEventBase):
     """Describes an counter reading"""
-    def __init__(self, timestamp, channel, value):
-        super(OwCounterEvent, self).__init__(timestamp)
+    def __init__(self, timestamp, channel, value, is_reset=False):
+        super(OwCounterEvent, self).__init__(timestamp, is_reset)
         self.channel = channel
         self.value = value
 
@@ -38,8 +39,8 @@ class OwCounterEvent(OwEventBase):
 
 class OwTemperatureEvent(OwEventBase):
     """Describes an temperature reading"""
-    def __init__(self, timestamp, value, unit):
-        super(OwTemperatureEvent, self).__init__(timestamp)
+    def __init__(self, timestamp, value, unit, is_reset=False):
+        super(OwTemperatureEvent, self).__init__(timestamp, is_reset)
         self.value = value
         self.unit = unit
 
@@ -50,8 +51,8 @@ class OwStatisticsEvent(OwEventBase):
     CATEOGORY_ERROR = "error"
     CATEOGORY_TRIES = "tries"
     """Describes an statistics reading"""
-    def __init__(self, timestamp, category, name, value):
-        super(OwStatisticsEvent, self).__init__(timestamp)
+    def __init__(self, timestamp, category, name, value, is_reset=False):
+        super(OwStatisticsEvent, self).__init__(timestamp, is_reset)
         self.name = name
         self.category = category
         self.value = value
@@ -66,18 +67,22 @@ class OwPIOEvent(OwEventBase):
     For toggle inputs, and outputs, the value is either ON or OFF.
 
     The channel should be a OwPIOChannel instance
+
+    The is_reset value may be set to True of this was dispatched due to a device
+    reset or application startup state detection (applicable for toggle inputs or
+    outputs only).
     """
     OFF = "OFF"
     ON = "ON"
     TRIGGED = "TRIGGED"
 
-    def __init__(self, timestamp, channel, value):
-        super(OwPIOEvent, self).__init__(timestamp)
+    def __init__(self, timestamp, channel, value, is_reset=False):
+        super(OwPIOEvent, self).__init__(timestamp, is_reset)
         self.channel = channel
         self.value = value
 
     def __str__(self):
-        return "OwPIOEvent[%d, %s, %s, %s]" % (self.timestamp, self.deviceId, self.channel, self.value)
+        return "OwPIOEvent[%d, %s, %s, %s%s]" % (self.timestamp, self.deviceId, self.channel, self.value, " (reset)" if self.is_reset else "")
 
 
 

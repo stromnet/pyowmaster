@@ -182,5 +182,8 @@ class OwChannel(object):
         self.config = cfg
 
     def __str__(self):
-        return "%s %s (alias %s)" % (self.__class__.__name__, self.name, self.alias)
+        alias = ""
+        if self.alias:
+            alias = " (alias %s)" % self.alias
+        return "%s %s%s" % (self.__class__.__name__, self.name, alias)
 

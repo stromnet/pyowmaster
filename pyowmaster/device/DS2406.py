@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 from base import OwDevice
-from pio import *
+from pio import OwPIODevice
 from pyowmaster.exception import ConfigurationError
 
 def register(factory):
@@ -73,7 +73,7 @@ class DS2406(OwPIODevice):
                 src_channel |= (1<<chnum)
                 if not src_is_latch:
                     # Sensed or PIO as source, determine high/low polarity 
-                    pol = 1 if ((ch.mode & PIO_MODE_ACTIVE_HIGH) != 0) else 0
+                    pol = 1 if ch.is_active_high else 0
 
                     if src_pol != None and src_pol != pol:
                         raise ConfigurationError("Cannot mix active high/low polarity when using alarm source other than latch")

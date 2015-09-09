@@ -100,8 +100,8 @@ class Main:
                 print("Failed to load configuration file %s: %s" % (self.cfgfile, e))
                 return False
 
-        #import pprint
-        #pprint.pprint(self.cfg)
+        import pprint
+        pprint.pprint(self.cfg)
 
         if self.owm:
             self.owm.refresh_config(self.cfg)

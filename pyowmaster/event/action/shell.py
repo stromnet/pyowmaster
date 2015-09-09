@@ -16,11 +16,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 from . import EventAction
+import subprocess
+import os
 
 class ShellAction(EventAction):
     """EventAction which executes an arbitrary shell command"""
-    def __init__(self, inventory, dev, channel, event_type, method_name, action_config, single_value):
-        super(ShellAction, self).__init__(inventory, dev, channel, event_type, method_name, action_config, single_value)
+    def __init__(self, inventory, dev, channel, event_type, method, action_config, single_value):
+        super(ShellAction, self).__init__(inventory, dev, channel, event_type, method, action_config, single_value)
         self.command = action_config.get('command', single_value)
 
     def run(self, event):
