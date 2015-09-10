@@ -61,36 +61,53 @@ devices:
     alias: my-test-device
     # Channel A is an output
     ch.A: output
-    # Channel B, is an push-button input which is to be regarded as active when it reads '1'
-    ch.B: input momentary active high
 
-    # commandhandler integration TODO
-    command.ch.B.trigged: 12.212333330000.A=on,12.212333330000.5=off
-    command.ch.A.trigged: shell:echo "Hej"
+    # Channel B, is an push-button input which is to be regarded as active when it reads '1'
+    ch.B:
+      mode: input momentary active high
+      # Actionhandler integration; when channel is trigged, execute actions
+      trigged:
+        - setpio.on: 12.212333330000.A
+        - setpio.off: 12.212333330000.5
+        - shell: echo "Hej"
 
   29.211144200000:
     # A DS2408, which has 8 PIOs
     alias: multi-io
     # Most inputs are momentary
-    ch.0: input active high
+    ch.0:
+      mode: input active high
+      trigged: 
+        - setpio.off: 29.211144200000.5
+        - setpio.off: 12.212333330000.A
     ch.1: input active high
+      trigged: 
+        - setpio.off: 29.211144200000.5
+        - setpio.on: 12.212333330000.A
     ch.2: input active high
     ch.3: input active high
     ch.4: input active high
-    # but we got one output
+
+    # we got one output
     ch.5: output
 
     # And one toggle input
-    ch.6: input toggle active high
+    ch.6:
+      mode: input toggle active high
+      on:
+        # When this input changes to "on", execute this shell command
+        - shell: mail -s "Channel 6 turned on" example@example.com
+        # Also set a device channel 5 to ON.
+        # This is marked "include_reset", which means that it shall exeute on events trigged by
+        # device or sw reset too.
+        - setpio.on.include_reset: 29.211144200000.5
+      off:
+        # When input changes (or is restarted) to off, send mail and turn off an output.
+        - shell.include_reset: mail -s "Channel 6 is off" example@example.com
+        - setpio.off.include_reset: 29.211144200000.5
 
     # Unused
     ch.7: input
-
-    command.ch.0.trigged: 29.211144200000.5=off,12.212333330000.A=off
-    command.ch.1.trigged: 29.211144200000.5=on,12.212333330000.A=off
-
-    command.ch.6.on: shell:owwrite -s localhost:4305 /29.211144200000/PIO.5 1
-    command.ch.6.off: shell:owwrite -s localhost:4305 /29.211144200000/PIO.5 0
 
 
 # Logging configuration
