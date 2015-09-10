@@ -15,8 +15,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-from handler import ThreadedOwEventHandler
-from events import *
+from pyowmaster.event.handler import ThreadedOwEventHandler
+from pyowmaster.event.events import *
 
 import rrdtool
 import os, time
@@ -57,32 +57,32 @@ class RRDOwEventHandler(ThreadedOwEventHandler):
 
     def handle_event_blocking(self, event):
         if isinstance(event, OwTemperatureEvent):
-            rrdfile = "%s%s.rrd" % (self.rrdpath, event.deviceId.id)
-            dsType = "GAUGE"
+            rrdfile = "%s%s.rrd" % (self.rrdpath, event.device_id.id)
+            dstype = "GAUGE"
         elif isinstance(event, OwCounterEvent):
-            rrdfile = "%s%s-%s.rrd" % (self.rrdpath, event.deviceId.id, event.channel)
-            dsType = "COUNTER"
+            rrdfile = "%s%s-%s.rrd" % (self.rrdpath, event.device_id.id, event.channel)
+            dstype = "COUNTER"
         elif isinstance(event, OwStatisticsEvent):
             rrdfile = "%s%s-%s.rrd" % (self.rrdpath, event.category, event.name)
-            dsType = "COUNTER"
+            dstype = "COUNTER"
         else:
             return
 
         if not exists(rrdfile):
-            self.create(rrdfile, dsType)
+            self.create(rrdfile, dstype)
 
         #self.log.debug("Updating %s", rrdfile)
-        if dsType == "GAUGE":
-            rrdtool.update(rrdfile, "%d:%.2f" % (event.timestamp, event.value)) 
-        elif dsType == "COUNTER":
-            rrdtool.update(rrdfile, "%d:%d" % (event.timestamp, event.value)) 
+        if dstype == "GAUGE":
+            rrdtool.update(rrdfile, "%d:%.2f" % (event.timestamp, event.value))
+        elif dstype == "COUNTER":
+            rrdtool.update(rrdfile, "%d:%d" % (event.timestamp, event.value))
 
-    def create(self, rrdfile, dsType):
+    def create(self, rrdfile, dstype):
         """Create a new RRD file. TODO not hardcode..."""
         self.log.info("Creating %s", rrdfile)
         rrdtool.create(rrdfile,
                 '-s', '60', \
-                'DS:value:%s:120:U:U' % dsType, \
+                'DS:value:%s:120:U:U' % dstype, \
                 'RRA:AVERAGE:0.5:1:1440', \
                 'RRA:AVERAGE:0.5:5:2016', \
                 'RRA:AVERAGE:0.5:15:2976', \
@@ -97,4 +97,4 @@ class RRDOwEventHandler(ThreadedOwEventHandler):
                 'RRA:MAX:0.5:5:2016', \
                 'RRA:MAX:0.5:15:2976', \
                 'RRA:MAX:0.5:60:4464')
-        
+

@@ -17,15 +17,15 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 import logging, logging.config
-import ConfigParser, sys, yaml
+import yaml, sys
 from yaml.scanner import ScannerError
 import time
 
 import pyownet.protocol
 from pyownet.protocol import *
-from . import OwMaster
-from ecollections import EnhancedMapping
-from exception import *
+from pyowmaster import OwMaster
+from pyowmaster.ecollections import EnhancedMapping
+from pyowmaster.exception import *
 
 class Main:
     def __init__(self):
@@ -56,12 +56,16 @@ class Main:
             tries = 0
             while True:
                 try:
-                    self.owm = OwMaster(pyownet.protocol.proxy(port=ow_port,verbose=False, flags=flags, persistent=persistent), self.cfg)
+                    self.owm = OwMaster(
+                        pyownet.protocol.proxy(
+                            port=ow_port, verbose=False, flags=flags, persistent=persistent),
+                        self.cfg)
                     break
                 except ConnError, e:
-                    tries+=1
+                    tries += 1
                     backoff = min((tries * 2) + 1, 60)
-                    log.warn("Failed initial connect to owserver on port %d, retrying in %ds: %s", ow_port, backoff, e)
+                    log.warn("Failed initial connect to owserver on port %d, retrying in %ds: %s",
+                            ow_port, backoff, e)
                     time.sleep(backoff)
 
             self.owm.main()
@@ -100,8 +104,8 @@ class Main:
                 print("Failed to load configuration file %s: %s" % (self.cfgfile, e))
                 return False
 
-        import pprint
-        pprint.pprint(self.cfg)
+#        import pprint
+#        pprint.pprint(self.cfg)
 
         if self.owm:
             self.owm.refresh_config(self.cfg)

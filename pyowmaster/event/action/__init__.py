@@ -25,7 +25,7 @@ class EventAction(object):
         """This signature represents how the ActionFactory tries to init each action"""
         self.inventory = inventory
         self.log = logging.getLogger(type(self).__name__)
-        
+
         # Check if we should react to is_reset values (default true)
         self.include_reset_events = action_config.get('include_reset', False)
 

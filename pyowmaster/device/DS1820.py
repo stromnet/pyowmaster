@@ -16,8 +16,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 import time
-from base import OwDevice
-from ..event.events import OwTemperatureEvent
+from pyowmaster.device.base import OwDevice
+from pyowmaster.event.events import OwTemperatureEvent
 
 def register(factory):
     # Misc names, but we follow OWFS source code and call ourselfs 1820 internally.
@@ -34,8 +34,8 @@ TEMP_MAX = {'C':125, 'F': 257, 'R':716, 'K':398}
 
 class DS1820(OwDevice):
     """Implements reading of a DS1820 and similar"""
-    def __init__(self, ow, id):
-        super(DS1820, self).__init__(ow, id)
+    def __init__(self, ow, owid):
+        super(DS1820, self).__init__(ow, owid)
         self.last = None
 
         # TODO: Configurable
@@ -59,7 +59,7 @@ class DS1820(OwDevice):
             self.read_temperature(timestamp)
 
     def read_temperature(self, timestamp):
-        data =  self.owReadStr('temperature', uncached=False)
+        data =  self.ow_read_str('temperature', uncached=False)
 
         temp = float(data)
 
@@ -72,7 +72,7 @@ class DS1820(OwDevice):
         if self.last == None:
             self.last = temp
 
-        self.emitEvent(OwTemperatureEvent(timestamp, temp, self.unit))
+        self.emit_event(OwTemperatureEvent(timestamp, temp, self.unit))
 #        self.log.debug("%s: Temp read in %.2fms -> Temp: %.3f (prev %.3f, diff %.3f), read @ %d, now=%d", \
 #                self, self.lastIoStats.time*1000, temp, self.last, self.last-temp,
 #                timestamp, time.time())
@@ -82,6 +82,6 @@ class DS1820(OwDevice):
     def on_alarm(self, timestamp):
         # Just disable alarms
         self.log.debug("%s: Silencing alarm", self)
-        self.owWrite('templow', TEMP_MIN[self.unit])
-        self.owWrite('temphigh', TEMP_MAX[self.unit])
+        self.ow_write('templow', TEMP_MIN[self.unit])
+        self.ow_write('temphigh', TEMP_MAX[self.unit])
 

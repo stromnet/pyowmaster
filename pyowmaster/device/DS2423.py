@@ -15,31 +15,31 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-from base import OwDevice
-from ..event.events import OwCounterEvent
+from pyowmaster.device.base import OwDevice
+from pyowmaster.event.events import OwCounterEvent
 
 def register(factory):
     factory.register("1D", DS2423)
 
 class DS2423(OwDevice):
     """Handles DS2423 dual counter chip"""
-    def __init__(self, ow, id):
-       super(DS2423, self).__init__(ow, id)
+    def __init__(self, ow, owid):
+       super(DS2423, self).__init__(ow, owid)
 
     def on_seen(self, timestamp):
         """Read A,B counter"""
-        counters = self.readCounters()
+        counters = self.read_counters()
 
-        self.emitEvent(OwCounterEvent(timestamp, 'A', counters[0]))
-        self.emitEvent(OwCounterEvent(timestamp, 'B', counters[1]))
+        self.emit_event(OwCounterEvent(timestamp, 'A', counters[0]))
+        self.emit_event(OwCounterEvent(timestamp, 'B', counters[1]))
 
         self.log.debug("%s: counters are %s", self, counters)
 
     def on_alarm(self, timestamp):
         # Normal DS2423 does not have alarm, but custom
         # AVR slave does. Silence it by reading it
-        self.readCounters()
+        self.read_counters()
 
-    def readCounters(self):
-        counters = self.owReadStr('counter.ALL', uncached=True)
+    def read_counters(self):
+        counters = self.ow_read_str('counter.ALL', uncached=True)
         return map(int, map(unicode.strip, counters.split(',')))

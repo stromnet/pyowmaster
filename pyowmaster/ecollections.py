@@ -96,7 +96,7 @@ class GetterMixin(object):
 
             (('section', 'fallback'), 'option', ('a', 'b')) will look at
             'section:option:a', 'section:option:b', 'fallback:option:a', 'fallback:option:b'
-            
+
 
         If no value for any key is found, the default returned.
         """

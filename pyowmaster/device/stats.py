@@ -16,14 +16,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from base import OwDevice, DeviceId
-from ..event.events import OwStatisticsEvent
+from pyowmaster.device.base import OwDevice, DeviceId
+from pyowmaster.event.events import OwStatisticsEvent
 
 ERRORS = ("BUS_bit_errors", "BUS_byte_errors", "BUS_detect_errors",
     "BUS_echo_errors", "BUS_level_errors", "BUS_next_alarm_errors",
     "BUS_next_errors", "BUS_readin_data_errors", "BUS_status_errors",
     "BUS_tcsetattr_errors",
-    "CRC16_errors", "CRC8_errors", 
+    "CRC16_errors", "CRC8_errors",
     "DS2480_level_docheck_errors", "DS2480_read_fd_isset",
     "DS2480_read_null", "DS2480_read_read",
     "NET_accept_errors", "NET_connection_errors", "NET_read_errors")
@@ -35,18 +35,18 @@ class OwStatistics(OwDevice):
     def __init__(self, ow):
         super(OwStatistics, self).__init__(ow, None)
         self.path = "/statistics/"
-        self.pathUncached = "/uncached/statistics/"
-        self.deviceId = DeviceId(None, 'OwStatistics')
+        self.path_uncached = "/uncached/statistics/"
+        self.device_id = DeviceId(None, 'OwStatistics')
 
     def on_seen(self, timestamp):
         """Read all error known counters"""
         for e in ERRORS:
             path = "errors/%s" % e
-            data = self.owRead(path)
+            data = self.ow_read(path)
             value = int(data)
 
             ev = OwStatisticsEvent(timestamp, OwStatisticsEvent.CATEOGORY_ERROR, e, value)
-            self.emitEvent(ev, True)
+            self.emit_event(ev, True)
 
         for e in TRIES:
             if e == 'read_tries':
@@ -55,16 +55,16 @@ class OwStatistics(OwDevice):
                 # XXX: Yes, CRC16_tries and CRC8_tries is under errors..
                 path = "errors/%s" % e
 
-            data = self.owRead(path)
+            data = self.ow_read(path)
             if e == 'read_tries':
                 read_tries = data.split(',')
                 for n in range(0, len(read_tries)):
                     value = int(read_tries[n])
 
                     ev = OwStatisticsEvent(timestamp, OwStatisticsEvent.CATEOGORY_TRIES, '%s_%d' % (e, n+1), value)
-                    self.emitEvent(ev, True)
+                    self.emit_event(ev, True)
 
             else:
                 value = int(data)
                 ev = OwStatisticsEvent(timestamp, OwStatisticsEvent.CATEOGORY_TRIES, e, value)
-                self.emitEvent(ev, True)
+                self.emit_event(ev, True)

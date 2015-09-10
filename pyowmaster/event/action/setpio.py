@@ -17,9 +17,8 @@
 #
 from pyownet.protocol import OwnetError
 
-from . import EventAction
+from pyowmaster.event.action import EventAction
 from pyowmaster.exception import *
-import pyowmaster.device.pio as pio
 
 class SetPioAction(EventAction):
     """EventAction which tries to alter another PIO output port"""
@@ -42,7 +41,7 @@ class SetPioAction(EventAction):
             raise ConfigurationError("No valid channel found from %s" % tgt)
 
         if not tgt_ch.is_output:
-            raise ConfigurationError("Device %s, channel %s not configured as output. Cannot use as setpio target" % (tgt_dev, ch))
+            raise ConfigurationError("Device %s, channel %s not configured as output. Cannot use as setpio target" % (tgt_dev, tgt_ch))
 
         self.tgt_dev = tgt_dev
         self.tgt_ch = tgt_ch

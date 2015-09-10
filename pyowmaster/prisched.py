@@ -51,20 +51,20 @@ class scheduler(object):
         return time.time()
 
     def delay(self, duration):
-        """Delays for the specified duration, where duration should be the same unit as 
+        """Delays for the specified duration, where duration should be the same unit as
         the time method uses. In this implementation we use time.sleep
         """
         return time.sleep(duration)
 
-    def createQueue(self, minDispatch=1, maxDispatch=10000):
+    def create_queue(self, min_dispatch=1, max_dispatch=10000):
         """Create a new queue, with lower priority than the preivously created queue
 
-        The minDispatch parameter tells how many events we should try to execute, before
+        The min_dispatch parameter tells how many events we should try to execute, before
         allowing a higher priority queue to execute again.
-        A higher minDispatch value ensures this queue is not starved due to too many
+        A higher min_dispatch value ensures this queue is not starved due to too many
         jobs on the higher priority queues.
 
-        The maxDispatch parameter tells how many events we are allowed to execute in one
+        The max_dispatch parameter tells how many events we are allowed to execute in one
         go, before checking back on the main queues.
         This is usefull if we have lots of lower-prio events, and we want them to be able
         to add events to a higher-prio queue and have them executed.
@@ -72,7 +72,7 @@ class scheduler(object):
         to pop back to the scheduler run() method to check if we are shutting down.
 
         """
-        queue = Queue(self.time, minDispatch, maxDispatch)
+        queue = Queue(self.time, min_dispatch, max_dispatch)
         self._queues.append(queue)
         return queue
 
@@ -83,11 +83,11 @@ class scheduler(object):
         are ready to execute. If ready to execute, we will remove the item from the
         queue and execute it. This will block until the event action returns.
 
-        The first queue, the one with highest prio, will always execute 
-        any number of items, but at most maxDispatch as configured.
+        The first queue, the one with highest prio, will always execute
+        any number of items, but at most max_dispatch as configured.
         Any subsequent queues will also be limited to execute no longer
         than the previous queues "next" limit is hit. However, at least
-        minDispatch events will be executed on all queues.
+        min_dispatch events will be executed on all queues.
 
         If no queues have any event immediately ready for execution,
         the delay function is called. If the delay function returns prematurely,
@@ -101,54 +101,56 @@ class scheduler(object):
         # localize variable access to minimize overhead
         # and to improve thread safety
         q = self._queues
-        self.doRun = True
-        numQueues = len(q)
-        while self.doRun:
-            nextAt = 0
+        self.do_run = True
+        num_queues = len(q)
+        while self.do_run:
+            next_at = 0
             now = self.time()
-            for i in range(numQueues):
-                # Dispatching with nextAt restricts the queue from dispatching actions
+            for i in range(num_queues):
+                # Dispatching with next_at restricts the queue from dispatching actions
                 # when the higher prioritized queues are ready to go
-                qAt = q[i].dispatch(now, nextAt)
-                if qAt != 0 and (nextAt == 0 or qAt < nextAt) :
-                    nextAt = qAt
+                qAt = q[i].dispatch(now, next_at)
+                if qAt != 0 and (next_at == 0 or qAt < next_at):
+                    next_at = qAt
 
             # If no queues have any events at all, we are done.
-            if nextAt == 0:
+            if next_at == 0:
                 return
 
             # Delay until next event, if necessary
             now = self.time()
-            if nextAt > now:
-                self.delay(nextAt - now)
+            if next_at > now:
+                self.delay(next_at - now)
 
-		
+
 class Queue(object):
-    def __init__(self, timefunc, minDispatch, maxDispatch):
+    def __init__(self, timefunc, min_dispatch, max_dispatch):
         self._queue = []
         self.timefunc = timefunc
-        self.minDispatch = minDispatch
-        self.maxDispatch = maxDispatch
+        self.min_dispatch = min_dispatch
+        self.max_dispatch = max_dispatch
 
-    def enterabs(self, time, action, argument):
+    def enterabs(self, at_time, action, argument):
         """Enter a new event in the queue at an absolute time.
 
         Returns an ID for the event which can be used to remove it,
         if necessary.
 
         """
-        event = Event(time, action, argument)
+        if not argument:
+            argument = []
+        event = Event(at_time, action, argument)
         heapq.heappush(self._queue, event)
         return event # The ID
 
-    def enter(self, delay, action, argument=[]):
+    def enter(self, delay, action, argument=None):
         """A variant that specifies the time as a relative time.
 
         This is actually the more commonly used interface.
         """
-        time = self.timefunc() + delay
-        return self.enterabs(time, action, argument)
-   
+        at_time = self.timefunc() + delay
+        return self.enterabs(at_time, action, argument)
+
     def cancel(self, event):
         """Remove an event from the queue.
 
@@ -159,24 +161,24 @@ class Queue(object):
         self._queue.remove(event)
         heapq.heapify(self._queue)
 
-    def dispatch(self, now, notLaterThan):
+    def dispatch(self, now, not_later_than):
         """Internal dispatch function, to be called from the scheduler only.
 
         Will dispatch events which are scheduled to execute on or after 'now'.
         The timestamp is passed as parameter to let all queues execute using the same
         relative time, to avoid one queue with long-running events to steal all time.
 
-        If notLaterThan is non-0, we will stop executing of events when the timefunc 
-        returns greater than or equal value than notLaterThan. Note that this uses the
+        If not_later_than is non-0, we will stop executing of events when the timefunc
+        returns greater than or equal value than not_later_than. Note that this uses the
         real time, not the static 'now' passed as parameter.
         If a higher-priority queue has pending events, this will ensure that those events
         are executed even if this lower-priority queue has jobs ready for execution.
-        We will however always dispatch at least minDispatch events, if available. This avoids
+        We will however always dispatch at least min_dispatch events, if available. This avoids
         queue starvation if higher prioritized queues have lots of/frequent events.
         """
         pop = heapq.heappop
         q = self._queue
-        
+
         dispatched = 0
         while q:
             time, action, argument = checked_event = q[0]
@@ -184,9 +186,9 @@ class Queue(object):
                 # Not ready for dispatch yet, tell scheduler when the next event is ready to go
                 return time
 
-            if dispatched >= self.minDispatch and \
-                (dispatched < self.maxDispatch or \
-                 (notLaterThan > 0 and self.timefunc() >= notLaterThan)):
+            if dispatched >= self.min_dispatch and \
+                (dispatched < self.max_dispatch or \
+                 (not_later_than > 0 and self.timefunc() >= not_later_than)):
                 # We've executed our minimum amount of events,
                 # but are now not allowed to execute any more.
                 return time

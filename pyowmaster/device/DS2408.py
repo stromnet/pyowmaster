@@ -15,8 +15,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-from base import OwDevice
-from pio import *
+from pyowmaster.device.base import OwDevice
+from pyowmaster.device.pio import *
 
 def register(factory):
     factory.register("29", DS2408)
@@ -29,8 +29,8 @@ ALARM_SOURCE_PIO_AND    = 2
 ALARM_SOURCE_LATCH_AND  = 3
 
 class DS2408(OwPIODevice):
-    def __init__(self, ow, id):
-        super(DS2408, self).__init__(True, ow, id)
+    def __init__(self, ow, owid):
+        super(DS2408, self).__init__(True, ow, owid)
 
         self.num_channels = 8
 
@@ -76,13 +76,13 @@ class DS2408(OwPIODevice):
         and ignore this alarm by returning True"""
 
         # Read POR status
-        por = int(self.owReadStr('por', uncached=True))
+        por = int(self.ow_read_str('por', uncached=True))
         self.log.debug("%s: POR is %d", self, por)
         if por != 0:
             self.log.info("%s: power-up alarm, resetting & clearing latches", self)
-            self.owWrite('por', 0)
-            self.owWrite('out_of_testmode', 0) # Just to be sure...
-            self.owWrite('latch.BYTE', '1')
+            self.ow_write('por', 0)
+            self.ow_write('out_of_testmode', 0) # Just to be sure...
+            self.ow_write('latch.BYTE', '1')
 
         if super(DS2408, self).check_alarm_config():
             return True

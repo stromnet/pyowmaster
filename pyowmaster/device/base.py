@@ -21,18 +21,18 @@ import logging
 from collections import namedtuple
 
 OwIoStatistic = namedtuple('OwIoStatistic', 'id operation uncached path time')
-OwIoStatistic.OP_READ=1
-OwIoStatistic.OP_WRITE=2
-OwIoStatistic.OP_DIR=3
+OwIoStatistic.OP_READ = 1
+OwIoStatistic.OP_WRITE = 2
+OwIoStatistic.OP_DIR = 3
 OwIoStatistic.OPS = [0, 'read', 'write', 'dir']
 
 DeviceId = namedtuple('DeviceId', 'id alias')
 
 class Device(object):
-    def __init__(self, ow, id):
+    def __init__(self, ow, owid):
         self.type = type(self).__name__
         self.log = logging.getLogger(self.type)
-        self.id = id
+        self.id = owid
         self.alias = None
         self.ow = ow
 
@@ -40,15 +40,15 @@ class Device(object):
         pass
 
 class OwDevice(Device):
-    def __init__(self, ow, id):
-        super(OwDevice, self).__init__(ow, id)
+    def __init__(self, ow, owid):
+        super(OwDevice, self).__init__(ow, owid)
 
         self.path = '/%s/' % self.id
-        self.pathUncached = '/uncached/%s/' % self.id
+        self.path_uncached = '/uncached/%s/' % self.id
         self.simultaneous = None
 
-    def init(self, eventDispatcher, stats):
-        self.eventDispatcher = eventDispatcher
+    def init(self, event_dispatcher, stats):
+        self.event_dispatcher = event_dispatcher
         self.stats = stats
 
     def config(self, config):
@@ -61,29 +61,29 @@ class OwDevice(Device):
         if not self.alias:
             self.alias = config.get(('devices', 'aliases', self.id), None)
 
-        self.deviceId = DeviceId(self.id, self.alias)
+        self.device_id = DeviceId(self.id, self.alias)
 
-        self.maxExecTime = [None,
+        self.max_exec_time = [None,
                 config.get(('devices', (self.id, self.type), 'max_read_time'), 1),
                 config.get(('devices', (self.id, self.type), 'max_write_time'), 1),
                 config.get(('devices', (self.id, self.type), 'max_dir_time'), 2)
             ]
 
-    def owRead(self, subPath, uncached=False):
+    def ow_read(self, sub_path, uncached=False):
         if not uncached:
             path = self.path
         else:
-            path = self.pathUncached
+            path = self.path_uncached
 
         tS = time()
-        raw = self.ow.read(path + subPath)
+        raw = self.ow.read(path + sub_path)
         tE = time()
 
-        self.storeIoStatistic(OwIoStatistic(self.id, OwIoStatistic.OP_READ, uncached, subPath, tE-tS))
+        self.store_io_statistics(OwIoStatistic(self.id, OwIoStatistic.OP_READ, uncached, sub_path, tE-tS))
 
         return raw
 
-    def owWrite(self, subPath, data):
+    def ow_write(self, sub_path, data):
         path = self.path
 
         if isinstance(data, str):
@@ -92,29 +92,29 @@ class OwDevice(Device):
             data = str2bytez(str(data))
 
         tS = time()
-        raw = self.ow.write(path + subPath, data)
+        raw = self.ow.write(path + sub_path, data)
         tE = time()
 
-        self.storeIoStatistic(OwIoStatistic(self.id, OwIoStatistic.OP_WRITE, False, subPath, tE-tS))
+        self.store_io_statistics(OwIoStatistic(self.id, OwIoStatistic.OP_WRITE, False, sub_path, tE-tS))
 
         return data
 
-    def owDir(self, subPath='', uncached=False):
+    def ow_dir(self, sub_path='', uncached=False):
         if not uncached:
             path = self.path
         else:
-            path = self.pathUncached
+            path = self.path_uncached
 
         tS = time()
-        entries = self.ow.dir(path + subPath)
+        entries = self.ow.dir(path + sub_path)
         tE = time()
 
-        self.storeIoStatistic(OwIoStatistic(self.id, OwIoStatistic.OP_DIR, uncached, subPath, tE-tS))
+        self.store_io_statistics(OwIoStatistic(self.id, OwIoStatistic.OP_DIR, uncached, sub_path, tE-tS))
 
         return entries
 
-    def owReadStr(self, subPath, uncached=False, strip=True):
-        raw = self.owRead(subPath, uncached=uncached)
+    def ow_read_str(self, sub_path, uncached=False, strip=True):
+        raw = self.ow_read(sub_path, uncached=uncached)
 
         data = bytes2str(raw)
         if strip:
@@ -122,45 +122,45 @@ class OwDevice(Device):
 
         return data
 
-    def emitEvent(self, event, skipDeviceId=False):
-        if not event.deviceId and not skipDeviceId:
-            event.deviceId = self.deviceId
+    def emit_event(self, event, skip_device_id=False):
+        if not event.device_id and not skip_device_id:
+            event.device_id = self.device_id
 
-        self.eventDispatcher.handle_event(event)
+        self.event_dispatcher.handle_event(event)
 
-    def storeIoStatistic(self, stats):
+    def store_io_statistics(self, stats):
         # Keep last for external access
-        self.lastIoStats = stats
+        self.last_io_stats = stats
 
         # Track
         self.stats.increment('ops.count_' + OwIoStatistic.OPS[stats.operation], stats.time*1000.0)
         self.stats.increment('ops.ms_' + OwIoStatistic.OPS[stats.operation], stats.time*1000.0)
 
-        if stats.time > self.maxExecTime[stats.operation]:
-            self.log.warn("%s: %s %s took %.2fs (max_exec_time %.2fs)", stats.id, OwIoStatistic.OPS[stats.operation], stats.path, stats.time, self.maxExecTime[stats.operation])
+        if stats.time > self.max_exec_time[stats.operation]:
+            self.log.warn("%s: %s %s took %.2fs (max_exec_time %.2fs)", stats.id, OwIoStatistic.OPS[stats.operation], stats.path, stats.time, self.max_exec_time[stats.operation])
         elif self.log.isEnabledFor(logging.DEBUG):
-            self.log.debug("%s: %s %s took %.2fs (max_exec_time %.2fs)", stats.id, OwIoStatistic.OPS[stats.operation], stats.path, stats.time, self.maxExecTime[stats.operation])
+            self.log.debug("%s: %s %s took %.2fs (max_exec_time %.2fs)", stats.id, OwIoStatistic.OPS[stats.operation], stats.path, stats.time, self.max_exec_time[stats.operation])
 
 
     def on_seen(self, timestamp):
         pass
 
     def on_alarm(self, timestamp):
-        self.log.warn("%s: Unhandled alarm" , str(self))
+        self.log.warn("%s: Unhandled alarm", str(self))
 
     def __str__(self):
-        return "%s[%s]" % (self.__class__.__name__, self.deviceId)
+        return "%s[%s]" % (self.__class__.__name__, self.device_id)
 
 
 class OwBus(OwDevice):
     """Implements a Ow Bus as a OwDevice to keep some statistics and helpers."""
     def __init__(self, ow):
-       super(OwBus, self).__init__(ow, '00.000000000000')
-       self.path = "/"
-       self.pathUncached = "/uncached/"
+        super(OwBus, self).__init__(ow, '00.000000000000')
+        self.path = "/"
+        self.path_uncached = "/uncached/"
 
-    def owDirAlarm(self, uncached=False):
-        return self.owDir("alarm", uncached=uncached)
+    def ow_dir_alarm(self, uncached=False):
+        return self.ow_dir("alarm", uncached=uncached)
 
     def on_seen(self, timestamp):
         raise NotImplementedError("Not supposed to call on_seen on OwBus")

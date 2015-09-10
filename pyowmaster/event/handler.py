@@ -22,7 +22,6 @@ class OwEventHandler(object):
     """Abstract basic event handler interface"""
     def __init__(self):
         self.log = logging.getLogger(type(self).__name__)
-        pass
 
     def _init_config(self, root_config, cfg_module_name):
         self.cfg_module_name = cfg_module_name
@@ -105,7 +104,7 @@ class OwEventDispatcher(OwEventHandler):
         """Signals all registered handlers to shut down"""
         for h in self.handlers:
             h.shutdown()
-      
+
 
 class ThreadedOwEventHandler(OwEventHandler):
     def __init__(self, max_queue_size=0):
@@ -142,7 +141,7 @@ class ThreadedOwEventHandler(OwEventHandler):
                 break
 
         self.log.debug("Main loop exited")
-            
+
     def cleanup(self):
         """Empty method executed after shutdown has returned and all queued events have been processed"""
         pass

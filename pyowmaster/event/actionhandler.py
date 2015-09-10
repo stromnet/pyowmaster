@@ -15,15 +15,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-import subprocess, re, os, collections, logging
+import collections, logging
 import importlib, inspect
 
-from handler import ThreadedOwEventHandler
-from events import *
-from action import EventAction
-from collections import namedtuple
-from ..exception import *
-import pyowmaster.device.pio as pio
+from pyowmaster.event.handler import ThreadedOwEventHandler
+from pyowmaster.event.events import *
+from pyowmaster.event.action import EventAction
+from pyowmaster.exception import *
 
 def create(inventory):
     return ActionEventHandler(inventory)
@@ -115,7 +113,7 @@ class ActionEventHandler(ThreadedOwEventHandler):
             return
 
         try:
-            by_ch = self.event_handlers_by_dev[event.deviceId.id]
+            by_ch = self.event_handlers_by_dev[event.device_id.id]
             by_type = by_ch[event.channel.num]
             actions = by_type[event.value.lower()]
         except KeyError:
@@ -152,8 +150,6 @@ class ActionFactory(object):
 
         will tell the 'pio' module to run action 'on' for the specified device.
         """
-        print action_config
-
         if len(action_config) == 1 and 'action' not in action_config:
             action_target = action_config.keys()[0]
             single_value = action_config.values()[0]

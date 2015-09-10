@@ -24,9 +24,9 @@ RE_DEV_ALIAS = re.compile('([A-Za-z0-9\-\_]+)')
 RE_DEV_CHANNEL = re.compile('([A-F0-9][A-F0-9]\.[A-F0-9]{12})\.([0-9AB])')
 RE_ALIAS_CHANNEL = re.compile('([A-Za-z0-9\-\_]+)\.([0-9AB])')
 
-def owid_from_path(idOrPath):
+def owid_from_path(id_or_path):
     """Tries to interpret an 1-Wire ID from a string"""
-    m = RE_DEV_ID.search(idOrPath)
+    m = RE_DEV_ID.search(id_or_path)
     if not m:
         return None
 
@@ -42,7 +42,7 @@ def is_valid_alias(alias):
     return RE_DEV_ALIAS.match(alias) != None
 
 def parse_target(tgt):
-    """Tries to resolve a id + channel from a "target" string, where 
+    """Tries to resolve a id + channel from a "target" string, where
     the id and channel are dot delimited.
     """
     m = RE_DEV_CHANNEL.match(tgt)

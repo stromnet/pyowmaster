@@ -15,8 +15,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-from handler import ThreadedOwEventHandler
-from events import *
+from pyowmaster.event.handler import ThreadedOwEventHandler
+from pyowmaster.event.events import *
 
 import socket
 
@@ -41,7 +41,7 @@ class OpenTSDBEventHandler(ThreadedOwEventHandler):
 
         self.address = (host, port)
 
-        # These can be overriden 
+        # These can be overriden
         self.metric_name = 'owfs.reading'
         self.sensor_key = 'sensor'
         self.alias_key = 'alias'
@@ -56,32 +56,32 @@ class OpenTSDBEventHandler(ThreadedOwEventHandler):
 
     def handle_event_blocking(self, event):
         if isinstance(event, OwTemperatureEvent):
-            valueFmt = "%.2f"
+            valuefmt = "%.2f"
             type_value = "temperature"
         elif isinstance(event, OwCounterEvent):
-            valueFmt = "%d"
+            valuefmt = "%d"
             type_value = "counter"
         elif isinstance(event, OwStatisticsEvent):
-            valueFmt = "%d"
+            valuefmt = "%d"
             type_value = "stats_%s" % event.category
         else:
             return
 
-        cmd = ("put %s %d "+valueFmt+" %s=%s") % (
+        cmd = ("put %s %d "+valuefmt+" %s=%s") % (
                 self.metric_name,
                 event.timestamp,
                 event.value,
                 self.type_key, type_value
                 )
 
-        if event.deviceId and event.deviceId.id:
-            cmd+=" %s=%s" % (self.sensor_key, event.deviceId.id)
+        if event.device_id and event.device_id.id:
+            cmd += " %s=%s" % (self.sensor_key, event.device_id.id)
 
         if self.alias_key:
             if isinstance(event, OwStatisticsEvent):
-                cmd += " %s=%s" % (self.alias_key,  event.name)
-            elif event.deviceId.alias:
-                cmd += " %s=%s" % (self.alias_key,  event.deviceId.alias)
+                cmd += " %s=%s" % (self.alias_key, event.name)
+            elif event.device_id.alias:
+                cmd += " %s=%s" % (self.alias_key, event.device_id.alias)
 
         if hasattr(event, 'channel'):
             cmd += " %s=%s" % (self.channel_key, event.channel)

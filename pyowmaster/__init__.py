@@ -19,18 +19,18 @@
 #
 
 from __future__ import print_function
-from pyownet.protocol import bytes2str,str2bytez,ConnError,OwnetError,ProtocolError
-import device
-import owidutil
-from device.base import OwBus
-from device.stats import OwStatistics, OwStatisticsEvent
-from event.handler import OwEventDispatcher
-from exception import ConfigurationError, OwMasterException
+from pyownet.protocol import bytes2str, str2bytez, ConnError, OwnetError, ProtocolError
+import pyowmaster.device
+import pyowmaster.owidutil as owidutil
+import pyowmaster.prisched as prisched
+from pyowmaster.device.base import OwBus
+from pyowmaster.device.stats import OwStatistics, OwStatisticsEvent
+from pyowmaster.event.handler import OwEventDispatcher
+from pyowmaster.exception import ConfigurationError, OwMasterException
 import importlib
 import time
 import traceback
 import logging
-import prisched
 
 __version__ = '0.0.0'
 SCAN_FULL = 0
@@ -55,60 +55,60 @@ class OwMaster(object):
         """This will ask all devices to refresh their config from the cfg struct"""
         self.config = config
         self.inventory.refresh_config(self.config)
-        self.eventDispatcher.refresh_config(self.config)
+        self.event_dispatcher.refresh_config(self.config)
 
     def _setup(self):
         # Create a scheduler where we queue our tasks
         self.scheduler = prisched.scheduler()
 
         # use two queues, prio order is always earlier created
-        self.queueHighPrio = self.scheduler.createQueue().enter
-        self.queueLowPrio = self.scheduler.createQueue().enter
+        self.queue_high_prio = self.scheduler.create_queue().enter
+        self.queue_low_prio = self.scheduler.create_queue().enter
 
         # Dispatcher for any events (counters, temp readings, switch changes etc)
-        self.eventDispatcher = OwEventDispatcher()
-        # Queue events until all modules have been inited; 
-        self.eventDispatcher.pause()
+        self.event_dispatcher = OwEventDispatcher()
+        # Queue events until all modules have been inited;
+        self.event_dispatcher.pause()
 
         # Init our own statistics tracker
-        self.stats = MasterStatistics(self.queueLowPrio, self.eventDispatcher,
-                self.config.get('owmaster:stats_report_interval', 60))
+        self.stats = MasterStatistics(self.queue_low_prio, self.event_dispatcher,
+            self.config.get('owmaster:stats_report_interval', 60))
 
         # Init bus object
         self.bus = OwBus(self.ow)
-        self.bus.init(self.eventDispatcher, self.stats)
+        self.bus.init(self.event_dispatcher, self.stats)
         self.bus.config(self.config)
 
         # Init pseudo-device fetching statistics from OWFS
         self.owstats = OwStatistics(self.ow)
-        self.owstats.init(self.eventDispatcher, self.stats)
+        self.owstats.init(self.event_dispatcher, self.stats)
         self.owstats.config(self.config)
 
         # Init a factory, and then an associated inventory
-        self.factory = DeviceFactory(self.ow, self.eventDispatcher, self.stats, self.config)
+        self.factory = DeviceFactory(self.ow, self.event_dispatcher, self.stats, self.config)
         self.inventory = DeviceInventory(self.factory, self.config)
 
         # Load handler modules
         self.load_handlers()
 
         # Key'ed SCAN_FULL(0) and SCAN_ALARM(1)
-        self.lastScan = [0, 0]
-        self.scanInterval = [
-                self.config.get('owmaster:scan_interval', 30),
-                self.config.get('owmaster:alarm_scan_interval', 1.0)
-            ]
-        self.scanQueue = [self.queueLowPrio, self.queueHighPrio]
+        self.last_scan = [0, 0]
+        self.scan_interval = [
+            self.config.get('owmaster:scan_interval', 30),
+            self.config.get('owmaster:alarm_scan_interval', 1.0)
+        ]
+        self.scan_queue = [self.queue_low_prio, self.queue_high_prio]
 
-        self.scanConnErrs = 0
+        self.scan_conn_errs = 0
 
         self.log.debug("Configured for scanning every %.2fs, alarm scanning every %.1fs",
-                self.scanInterval[SCAN_FULL],
-                self.scanInterval[SCAN_ALARM])
+                        self.scan_interval[SCAN_FULL],
+                        self.scan_interval[SCAN_ALARM])
 
-        self.eventDispatcher.resume()
+        self.event_dispatcher.resume()
 
     def _mainloop(self):
-        self.simultaneousTemperaturePending = False
+        self.simultaneous_temperature_pending = False
 
         # These initial scans will enqueue jobs to the scheduler
         self.scan(SCAN_FULL)
@@ -133,7 +133,7 @@ class OwMaster(object):
     def shutdown(self):
         """Shutdown all background operations, if any"""
         try:
-            self.eventDispatcher.shutdown()
+            self.event_dispatcher.shutdown()
         except:
             self.log.error("Unhandled exception while shutting down event handlers", exc_info=True)
 
@@ -151,8 +151,8 @@ class OwMaster(object):
             try:
                 h._init_config(self.config, module_name)
 
-                # Add to eventDispatcher; this handler will now get all events
-                self.eventDispatcher.add_handler(h)
+                # Add to event_dispatcher; this handler will now get all events
+                self.event_dispatcher.add_handler(h)
             except:
                 try:
                     h.shutdown()
@@ -165,11 +165,11 @@ class OwMaster(object):
         backoff = 0
         try:
             self._scan(scan_mode == SCAN_ALARM)
-            self.lastScan[scan_mode] = time.time()
-            if self.scanConnErrs > 0:
+            self.last_scan[scan_mode] = time.time()
+            if self.scan_conn_errs > 0:
                 self.log.info("Connection back online")
 
-            self.scanConnErrs = 0
+            self.scan_conn_errs = 0
 
             # In normal cases, try to read stats every normal scan
             # This is done outside of scan method, in case bus scan fails for
@@ -179,64 +179,69 @@ class OwMaster(object):
                 self.owstats.on_seen(time.time())
 
         except ConnError, e:
-            self.scanConnErrs+=1
-            backoff = min((self.scanConnErrs * 2) + 1, 20)
-            self.log.error("Connection error while executing main loop. Waiting %ds and retrying", backoff)
+            self.scan_conn_errs += 1
+            backoff = min((self.scan_conn_errs * 2) + 1, 20)
+            self.log.error("Connection error while executing main loop. Waiting %ds and retrying",
+                    backoff)
         finally:
-            self.scanQueue[scan_mode](self.scanInterval[scan_mode] + backoff, self.scan, [scan_mode])
+            self.scan_queue[scan_mode](
+                    self.scan_interval[scan_mode] + backoff,
+                    self.scan,
+                    [scan_mode])
 
 
-    def _scan(self, alarmMode):
+    def _scan(self, alarm_mode):
         try:
-            if alarmMode:
+            if alarm_mode:
                 self.stats.increment('tries.alarm_scan')
-                ids = self.bus.owDirAlarm(uncached=True)
+                ids = self.bus.ow_dir_alarm(uncached=True)
             else:
                 self.stats.increment('tries.full_scan')
-                ids = self.bus.owDir(uncached=True)
+                ids = self.bus.ow_dir(uncached=True)
         except OwnetError, e:
-            self.log.error("Bus scan failed: %s",e)
+            self.log.error("Bus scan failed: %s", e)
             return
 
         timestamp = time.time()
 #        self.log.debug("%s scan executed in %.2fms", \
-#                "Alarm" if alarmMode else "Bus", self.bus.lastIoStats.time*1000)
+#                "Alarm" if alarm_mode else "Bus", self.bus.last_io_stats.time*1000)
 
-        deviceList = []
-        uniqueDevices = set()
-        for devId in ids:
-            if devId in uniqueDevices:
-                self.log.warn("Duplicate device ID in scan: %s" % devId)
+        device_list = []
+        unique_devices = set()
+        for dev_id in ids:
+            if dev_id in unique_devices:
+                self.log.warn("Duplicate device ID in scan: %s" % dev_id)
                 self.stats.increment('error.scan_duplicate')
                 continue
 
-            uniqueDevices.add(devId)
+            unique_devices.add(dev_id)
 
             # Finds existing device or creates new, if family is known
-            dev = self.inventory.find(devId, create=True)
+            dev = self.inventory.find(dev_id, create=True)
             if dev == None:
                 continue
 
-            deviceList.append(dev)
+            device_list.append(dev)
 
-        if not alarmMode:
+        if not alarm_mode:
             # Find "lost" devices
-            missing = self.inventory.list(skipList = deviceList)
+            missing = self.inventory.list(skip_list=device_list)
             if missing:
-                self.log.warn("Missing %d (of %d) devices: %s", len(missing), self.inventory.size(), ', '.join(map(str,missing)))
+                self.log.warn("Missing %d (of %d) devices: %s",
+                        len(missing), self.inventory.size(), ', '.join(map(str, missing)))
                 self.stats.increment('error.lost_devices', len(missing))
 
             # TODO: Handle some way
         else:
-            self.stats.increment('bus.device_count', len(deviceList))
+            self.stats.increment('bus.device_count', len(device_list))
 
         simultaneous = {}
-        for dev in deviceList:
-            if alarmMode:
+        for dev in device_list:
+            if alarm_mode:
                 # Schedule Alarm handler immediately
-                self.queueHighPrio(0, dev.on_alarm, [timestamp])
+                self.queue_high_prio(0, dev.on_alarm, [timestamp])
             else:
-                self.queueLowPrio(0, dev.on_seen, [timestamp])
+                self.queue_low_prio(0, dev.on_seen, [timestamp])
                 if dev.simultaneous != None:
                     # Device supports simultaneous handling, enqueue it
                     if not simultaneous.has_key(dev.simultaneous):
@@ -249,7 +254,7 @@ class OwMaster(object):
             # Simultaneous temperature conversions?
             if simultaneous.has_key('temperature'):
                 devs = simultaneous.pop('temperature')
-                self.simultaneousTemperature(devs)
+                self.simultaneous_temperature(devs)
 
             # Fail any unhandled variants
             if len(simultaneous.keys()) != 0:
@@ -257,7 +262,7 @@ class OwMaster(object):
 
         # End of scan method
 
-    def simultaneousTemperature(self, devices):
+    def simultaneous_temperature(self, devices):
         """
         Executes a simultanous temperature conversion, scheduling read of all devices after
         the conversions is estimated to be finished.
@@ -268,59 +273,58 @@ class OwMaster(object):
 
         If any device is NOT powered, it will execute a regular convert right befor reading.
         """
-        if self.simultaneousTemperaturePending:
+        if self.simultaneous_temperature_pending:
             raise Exception("Simultanous temperature convert already pending")
-#            self.log.warn("Skipping simultanous temperature; already pending")
-#            return
 
-        self.simultaneousTemperaturePending = True
+        self.simultaneous_temperature_pending = True
 
         # Execute conversion. this returns immediately
-        self.bus.owWrite('simultaneous/temperature', '1')
+        self.bus.ow_write('simultaneous/temperature', '1')
         convert_start_ts = time.time()
-        self.simultaneousTemperaturePending = time.time()
-        self.log.debug("Simultaneous temperature executed in %.2fms", self.bus.lastIoStats.time*1000)
+        self.simultaneous_temperature_pending = time.time()
+        self.log.debug("Simultaneous temperature executed in %.2fms",
+                self.bus.last_io_stats.time*1000)
 
         # Wait 1000ms before actually reading the scratchpads
-        self.queueLowPrio(1.0, self._simultaneousTemperatureRead, [devices, convert_start_ts])
+        self.queue_low_prio(1.0, self._simultaneous_temperature_read, [devices, convert_start_ts])
 
-    def _simultaneousTemperatureRead(self, devices, convert_start_ts):
+    def _simultaneous_temperature_read(self, devices, convert_start_ts):
         """Reads a list of temperature sensors after simultaneous conversion is estimated to have finished"""
         self.log.debug("Simultaneous temperature convert ready, reading")
-        self.simultaneousTemperaturePending = False
+        self.simultaneous_temperature_pending = False
         for dev in devices:
-            self.queueLowPrio(0, dev.read_temperature, [convert_start_ts])
+            self.queue_low_prio(0, dev.read_temperature, [convert_start_ts])
 
 
 
 
 class DeviceFactory(object):
-    def __init__(self, owNetProxy, eventDispatcher, stats, config):
+    def __init__(self, owNetProxy, event_dispatcher, stats, config):
         self.log = logging.getLogger(type(self).__name__)
         self.ow = owNetProxy
-        self.deviceTypes = {}
-        self.eventDispatcher = eventDispatcher
+        self.device_types = {}
+        self.event_dispatcher = event_dispatcher
         self.stats = stats
         self.config = config
 
         # Register known device classes
-        for d in device.__all__:
+        for d in pyowmaster.device.__all__:
             m = importlib.import_module('pyowmaster.device.'+d)
             m.register(self)
 
-    def register(self, familyCode, classRef):
-        assert self.deviceTypes.get(familyCode) == None, "Family code %s already registered" % familyCode
-        self.deviceTypes[familyCode] = classRef
+    def register(self, family_code, class_ref):
+        assert self.device_types.get(family_code) == None, "Family code %s already registered" % family_code
+        self.device_types[family_code] = class_ref
 
     def create(self, dev_id):
         family = dev_id[0:2]
-        devType = self.deviceTypes.get(family)
-        if devType == None:
+        dev_type = self.device_types.get(family)
+        if dev_type == None:
             self.log.info("Cannot create device with family code %s, not registered", family)
             return None
 
-        dev = devType(self.ow, dev_id)
-        dev.init(self.eventDispatcher, self.stats)
+        dev = dev_type(self.ow, dev_id)
+        dev.init(self.event_dispatcher, self.stats)
 
         try:
             dev.config(self.config)
@@ -404,13 +408,13 @@ class DeviceInventory(object):
             if dev.alias:
                 self._add_alias(dev.alias, dev_id)
 
-    def find(self, idOrPath, create=False):
+    def find(self, id_or_path, create=False):
         """Find a Device object associated with the specified 1-wire ID.
 
         As the name indicates, a plain ID can be given, or a path which contains an ID.
         If the devices is not found, it is created.
         """
-        dev_id = owidutil.owid_from_path(idOrPath)
+        dev_id = owidutil.owid_from_path(id_or_path)
         if not dev_id:
             # Invalid ID, could be an alias
             # XXX: If any device has an alias, we will miss it.
@@ -472,7 +476,7 @@ class DeviceInventory(object):
 
         Additionally the target_str can contain a .<channel id> suffix,
         in which case a channel is returned as well.
-        
+
         Returns tuple of (dev, channel), where channel should be a OwChannel
         instance if it was found. If channel id was specified, but no
         matching channel was found, channel is False
@@ -501,15 +505,15 @@ class DeviceInventory(object):
 
         return (dev, False)
 
-    def list(self, skipList=None):
+    def list(self, skip_list=None):
         """Return a list of all known devices.
 
-        If skipList is set, we skip all devices in that list"""
+        If skip_list is set, we skip all devices in that list"""
         out = []
         skip = {}
-        if skipList:
+        if skip_list:
             # Transform to map with ID as key
-            for dev in skipList:
+            for dev in skip_list:
                 if type(dev) != str:
                     dev = dev.id
                 skip[dev] = 1
@@ -529,13 +533,13 @@ class DeviceInventory(object):
 
 
 class MasterStatistics:
-    def __init__(self, queue, eventDispatcher, reportInterval=60):
+    def __init__(self, queue, event_dispatcher, report_interval=60):
         self.log = logging.getLogger(type(self).__name__)
         self.counters = {}
         self.queue = queue
-        self.eventDispatcher = eventDispatcher
-        self.reportInterval = reportInterval
-        self.queue(self.reportInterval, self.report)
+        self.event_dispatcher = event_dispatcher
+        self.report_interval = report_interval
+        self.queue(self.report_interval, self.report)
 
     def init(self, key):
         """Initialize a counter key to be reported even if no increment is ever made.
@@ -569,7 +573,7 @@ class MasterStatistics:
             value = self.counters[key]
 
             ev = OwStatisticsEvent(timestamp, category, name, value)
-            self.eventDispatcher.handle_event(ev)
+            self.event_dispatcher.handle_event(ev)
 
-        self.queue(self.reportInterval, self.report)
+        self.queue(self.report_interval, self.report)
 

@@ -21,11 +21,11 @@ class OwEventBase(object):
     1-Wire devices as result of alarms or regular polling"""
     def __init__(self, timestamp, is_reset):
         self.timestamp = timestamp
-        self.deviceId = None
+        self.device_id = None
         self.is_reset = is_reset
 
     def __str__(self):
-        return "OwEvent[%d: %s, unknown]" % (self.timestamp, self.deviceId)
+        return "OwEvent[%d: %s, unknown]" % (self.timestamp, self.device_id)
 
 class OwCounterEvent(OwEventBase):
     """Describes an counter reading"""
@@ -35,7 +35,7 @@ class OwCounterEvent(OwEventBase):
         self.value = value
 
     def __str__(self):
-        return "OwCounterEvent[%d: %s, ch %s, %d]" % (self.timestamp, self.deviceId, self.channel, self.value)
+        return "OwCounterEvent[%d: %s, ch %s, %d]" % (self.timestamp, self.device_id, self.channel, self.value)
 
 class OwTemperatureEvent(OwEventBase):
     """Describes an temperature reading"""
@@ -45,7 +45,7 @@ class OwTemperatureEvent(OwEventBase):
         self.unit = unit
 
     def __str__(self):
-        return "OwTemperatureEvent[%d: %s, %.2f %s]" % (self.timestamp, self.deviceId, self.value, self.unit)
+        return "OwTemperatureEvent[%d: %s, %.2f %s]" % (self.timestamp, self.device_id, self.value, self.unit)
 
 class OwStatisticsEvent(OwEventBase):
     CATEOGORY_ERROR = "error"
@@ -82,7 +82,7 @@ class OwPIOEvent(OwEventBase):
         self.value = value
 
     def __str__(self):
-        return "OwPIOEvent[%d, %s, %s, %s%s]" % (self.timestamp, self.deviceId, self.channel, self.value, " (reset)" if self.is_reset else "")
+        return "OwPIOEvent[%d, %s, %s, %s%s]" % (self.timestamp, self.device_id, self.channel, self.value, " (reset)" if self.is_reset else "")
 
 
 
