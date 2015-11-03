@@ -57,7 +57,15 @@ class ActionEventHandler(ThreadedOwEventHandler):
                 continue
 
             by_ch = None
-            for ch in dev.channels:
+            channel_list = dev.channels
+
+            # Some devices has a dict with name->channel
+            if isinstance(dev.channels, dict):
+                channel_list = []
+                for ch_name in dev.channels.keys():
+                    channel_list.append(dev.channels[ch_name])
+
+            for ch in channel_list:
                 by_type = None
                 # TODO: Resolve event_types from device class?
 

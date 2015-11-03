@@ -122,6 +122,12 @@ class OwDevice(Device):
 
         return data
 
+    def ow_read_int_list(self, sub_path, uncached=False):
+        """Read a string path which contains comma separated integer values,
+        and return a list of each value as an int"""
+        raw = self.ow_read_str(sub_path, uncached=uncached)
+        return map(int, map(unicode.strip, raw.split(',')))
+
     def emit_event(self, event, skip_device_id=False):
         if not event.device_id and not skip_device_id:
             event.device_id = self.device_id

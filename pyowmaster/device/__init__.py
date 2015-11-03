@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-__all__ = ['DS1820', 'DS2406', 'DS2408', 'DS2413', 'DS2423']
+__all__ = ['DS1820', 'DS2406', 'DS2408', 'DS2413', 'DS2423', 'MoaT']
 
 
 
