@@ -59,6 +59,9 @@ class RRDOwEventHandler(ThreadedOwEventHandler):
         if isinstance(event, OwTemperatureEvent):
             rrdfile = "%s%s.rrd" % (self.rrdpath, event.device_id.id)
             dstype = "GAUGE"
+        elif isinstance(event, OwAdcEvent):
+            rrdfile = "%s%s-%s.rrd" % (self.rrdpath, event.device_id.id, event.channel)
+            dstype = "GAUGE"
         elif isinstance(event, OwCounterEvent):
             rrdfile = "%s%s-%s.rrd" % (self.rrdpath, event.device_id.id, event.channel)
             dstype = "COUNTER"

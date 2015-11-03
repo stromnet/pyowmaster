@@ -61,6 +61,9 @@ class OpenTSDBEventHandler(ThreadedOwEventHandler):
         elif isinstance(event, OwCounterEvent):
             valuefmt = "%d"
             type_value = "counter"
+        elif isinstance(event, OwAdcEvent):
+            valuefmt = "%d"
+            type_value = "gauge"
         elif isinstance(event, OwStatisticsEvent):
             valuefmt = "%d"
             type_value = "stats_%s" % event.category

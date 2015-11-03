@@ -37,6 +37,16 @@ class OwCounterEvent(OwEventBase):
     def __str__(self):
         return "OwCounterEvent[%d: %s, ch %s, %d]" % (self.timestamp, self.device_id, self.channel, self.value)
 
+class OwAdcEvent(OwEventBase):
+    """Describes an ADC reading"""
+    def __init__(self, timestamp, channel, value, is_reset=False):
+        super(OwAdcEvent, self).__init__(timestamp, is_reset)
+        self.channel = channel
+        self.value = value
+
+    def __str__(self):
+        return "OwAdcEvent[%d: %s, ch %s, %d]" % (self.timestamp, self.device_id, self.channel, self.value)
+
 class OwTemperatureEvent(OwEventBase):
     """Describes an temperature reading"""
     def __init__(self, timestamp, value, unit, is_reset=False):
