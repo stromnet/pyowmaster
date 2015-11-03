@@ -276,14 +276,15 @@ class OwMaster(object):
         if self.simultaneous_temperature_pending:
             raise Exception("Simultanous temperature convert already pending")
 
-        self.simultaneous_temperature_pending = True
-
         # Execute conversion. this returns immediately
         self.bus.ow_write('simultaneous/temperature', '1')
         convert_start_ts = time.time()
         self.simultaneous_temperature_pending = time.time()
         self.log.debug("Simultaneous temperature executed in %.2fms",
                 self.bus.last_io_stats.time*1000)
+
+        # Set *after* successful ow_write, it may fail.
+        self.simultaneous_temperature_pending = True
 
         # Wait 1000ms before actually reading the scratchpads
         self.queue_low_prio(1.0, self._simultaneous_temperature_read, [devices, convert_start_ts])
