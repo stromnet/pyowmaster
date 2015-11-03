@@ -39,7 +39,7 @@ def resolve_keys(keys):
         if part == None:
             continue
 
-        if type(part) in (int, str):
+        if type(part) in (int, str, unicode):
             # Plain string/int, add to end of every known mutation
             if len(res) == 0:
                 res.append(str(part))
@@ -65,7 +65,7 @@ def resolve_keys(keys):
                             new.append(res[n] + ':' + part[m])
                 res = new
         else:
-            raise Exception("Unknown part type %s in keys" % str(part))
+            raise Exception("Unknown part '%s' (type %s) in keys" % (str(part), type(part)))
 
     return res
 

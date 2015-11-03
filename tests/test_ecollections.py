@@ -73,7 +73,7 @@ class EnhancedMappingTest(unittest.TestCase):
         self.assertEqual(d.get('b:0'), 9)
 
     def testFallbacks(self):
-        d = EnhancedMapping({'a':{'r':4}, 'b': {'x':5, 'r':0}})
+        d = EnhancedMapping({'a':{'r':4}, 'b': {'x':5, 'r':0}, 'd':{}})
         self.assertEquals(d.get('a:r'), 4)
         self.assertEquals(d.get('a:x'), None)
         self.assertEquals(d.get('b:a'), None)
@@ -84,6 +84,8 @@ class EnhancedMappingTest(unittest.TestCase):
         self.assertEquals(d.get('b:r'), 0)
         self.assertEquals(d.get((('a','b'), 'x')), 5)
         self.assertEquals(d.get((('a','b'), 'r')), 4)
+        self.assertEquals(d.get((('c', 'a','b'), 'r')), 4)
+        self.assertEquals(d.get((('d', 'a','b'), 'r')), 4)
 
 
 class EnhancedSequenceTest(unittest.TestCase):
