@@ -71,6 +71,9 @@ class RRDOwEventHandler(ThreadedOwEventHandler):
         else:
             return
 
+        # Must not feed it unicodes
+        rrdfile = str(rrdfile)
+
         if not exists(rrdfile):
             self.create(rrdfile, dstype)
 
@@ -82,7 +85,7 @@ class RRDOwEventHandler(ThreadedOwEventHandler):
 
     def create(self, rrdfile, dstype):
         """Create a new RRD file. TODO not hardcode..."""
-        self.log.info("Creating %s", rrdfile)
+        self.log.info("Creating %s (%s)", rrdfile, dstype)
         rrdtool.create(rrdfile,
                 '-s', '60', \
                 'DS:value:%s:120:U:U' % dstype, \
