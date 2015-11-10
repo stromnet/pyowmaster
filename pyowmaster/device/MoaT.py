@@ -17,7 +17,7 @@
 #
 from pyowmaster.device.base import OwDevice
 from pyowmaster.device.pio import *
-from pyowmaster.event.events import OwAdcEvent
+from pyowmaster.event.events import OwAdcEvent, OwCounterEvent
 
 ADC_MIN = 0
 ADC_MAX = 65535
@@ -51,6 +51,8 @@ class MoaT(OwDevice):
                     ch = MoaTADCChannel(ch_type, ch_num, config, self)
                 elif ch_type == 'port':
                     ch = MoaTPortChannel(ch_type, ch_num, config, self)
+                elif ch_type == 'count':
+                    ch = MoaTCountChannel(ch_type, ch_num, config, self)
                 else:
                     continue
 
@@ -79,7 +81,7 @@ class MoaT(OwDevice):
                     port_no = port_no[1:]
 
                 ch_name = '%s.%s' % (port_type, port_no)
-                ch = self.channels[ch_name]
+                ch = self.channels.get(ch_name, None)
                 if not ch:
                     self.log.debug("Ignoring unknown channel %s", ch_name)
                     continue
@@ -122,6 +124,30 @@ class MoaTPortChannel(MoaTChannel):
         super(MoaTPortChannel, self).__init__(ch_type, ch_num, config, device)
 
     def on_alarm(self, timestamp):
+        self.read()
+
+    def read(self):
+        """Read and update value"""
+        value = int(self.device.ow_read(self.name, uncached=True))
+        self.log.debug("Value of %s: %d",
+                self.name, value)
+
+        self.value = value
+
+class MoaTCountChannel(MoaTChannel):
+    """A OwChannel for MoaT Count channels"""
+    def __init__(self, ch_type, ch_num, config, device):
+        super(MoaTCountChannel, self).__init__(ch_type, ch_num, config, device)
+
+    def on_seen(self, timestamp):
+        self.read()
+        ev=OwCounterEvent(timestamp, self.name, self.value)
+
+        self.log.debug("Emitting event %s", ev)
+        self.device.emit_event(ev)
+
+    def on_alarm(self, timestamp):
+        # Just silence it for now
         self.read()
 
     def read(self):
