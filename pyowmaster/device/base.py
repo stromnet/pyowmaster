@@ -36,6 +36,9 @@ class Device(object):
         self.alias = None
         self.ow = ow
 
+        # Initialize as present
+        self.lost = False
+
     def config(self, config):
         pass
 

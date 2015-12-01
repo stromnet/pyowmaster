@@ -221,13 +221,23 @@ class OwMaster(object):
             if dev == None:
                 continue
 
+            # We just seen it, mark it non-lost
+            if dev.lost:
+                self.log.warn("Device %s back online", dev)
+                dev.lost = False
+
             device_list.append(dev)
 
         if not alarm_mode:
             # Find "lost" devices
             missing = self.inventory.list(skip_list=device_list)
             if missing:
-                self.log.warn("Missing %d (of %d) devices: %s",
+                for dev in missing:
+                    if not dev.lost:
+                        self.log.warn("Lost device %s", dev)
+                        dev.lost = True
+
+                self.log.info("Missing %d (of %d) devices: %s",
                         len(missing), self.inventory.size(), ', '.join(map(str, missing)))
                 self.stats.increment('error.lost_devices', len(missing))
 
