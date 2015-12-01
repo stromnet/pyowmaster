@@ -37,6 +37,7 @@ class Device(object):
         self.ow = ow
 
         # Initialize as present
+        self.seen = False
         self.lost = False
 
     def config(self, config):

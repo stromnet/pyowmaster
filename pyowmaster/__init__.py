@@ -223,8 +223,12 @@ class OwMaster(object):
 
             # We just seen it, mark it non-lost
             if dev.lost:
-                self.log.warn("Device %s back online", dev)
-                dev.lost = False
+                if dev.seen:
+                    self.log.warn("Device %s back online", dev)
+                    dev.lost = False
+                else:
+                    # Only marked at very first time seen
+                    dev.seen = True
 
             device_list.append(dev)
 
@@ -234,8 +238,16 @@ class OwMaster(object):
             if missing:
                 for dev in missing:
                     if not dev.lost:
-                        self.log.warn("Lost device %s", dev)
+                        # Not marked lost in earlier scans
+                        if not dev.seen:
+                            # Never seen at all; must have been from configuration
+                            self.log.warn("Device is configured but not on bus: %s", dev)
+                        else:
+                            # Got lost since last scan
+                            self.log.warn("Lost device %s", dev)
+
                         dev.lost = True
+
 
                 self.log.info("Missing %d (of %d) devices: %s",
                         len(missing), self.inventory.size(), ', '.join(map(str, missing)))
