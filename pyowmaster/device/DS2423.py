@@ -41,5 +41,4 @@ class DS2423(OwDevice):
         self.read_counters()
 
     def read_counters(self):
-        counters = self.ow_read_str('counter.ALL', uncached=True)
-        return map(int, map(unicode.strip, counters.split(',')))
+        return self.ow_read_int_list('counter.ALL', uncached=True)
