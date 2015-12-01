@@ -496,15 +496,8 @@ class DeviceInventory(object):
                     raise Exception("Alias %s pointed to device %s which was not found" % (alias_or_id, dev_id))
 
         # Should have a device now.
-        if not ch_name or not hasattr(dev, 'channels'):
-            return (dev, None)
-
-        # Lookup channel
-        for c in dev.channels:
-            if c.num == ch_name or c.name == ch_name:
-                return (dev, c)
-
-        return (dev, False)
+        ch = dev.get_channel(ch_name)
+        return (dev, ch)
 
     def list(self, skip_list=None):
         """Return a list of all known devices.

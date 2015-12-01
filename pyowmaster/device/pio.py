@@ -101,6 +101,13 @@ class OwPIOChannel(OwChannel):
 
         return s
 
+    def get_pio_event_values(self):
+        """pywomaster.event.actionhandler uses this to determine which PIO event values this channel may dispatch"""
+        if self.is_input_momentary:
+            return ('trigged',)
+        else:
+            return ('on', 'off')
+
     @property
     def is_output(self):
         return test_bits(self.mode, PIO_MODE_OUTPUT)
@@ -368,8 +375,6 @@ class OwPIODevice(OwDevice):
         else:
             ch_num = self._ch_translate_rev(channel)
             ch = self.channels[ch_num]
-
-        mode = ch.mode
 
         if not ch.is_output:
             raise InvalidChannelError("Channel not configured as output")

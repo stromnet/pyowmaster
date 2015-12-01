@@ -75,8 +75,10 @@ class OwPIOEvent(OwEventBase):
 
     For momentary inputs, the value is always TRIGGED
     For toggle inputs, and outputs, the value is either ON or OFF.
+    Custom values are also possible. The OwChannel must override get_pio_event_values()
+    with the values it may send.
 
-    The channel should be a OwPIOChannel instance
+    The channel should be the name of the channel.
 
     The is_reset value may be set to True of this was dispatched due to a device
     reset or application startup state detection (applicable for toggle inputs or

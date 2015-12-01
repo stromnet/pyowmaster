@@ -56,22 +56,19 @@ class ActionEventHandler(ThreadedOwEventHandler):
             if not hasattr(dev, 'channels'):
                 continue
 
-            by_ch = None
+            by_ch  = None
             channel_list = dev.channels
 
             # Some devices has a dict with name->channel
             if isinstance(dev.channels, dict):
-                channel_list = []
-                for ch_name in dev.channels.keys():
-                    channel_list.append(dev.channels[ch_name])
+                channel_list = dev.channels.values()
 
             for ch in channel_list:
                 by_type = None
-                # TODO: Resolve event_types from device class?
 
                 # Ch config can have on/off/trigged config keys, which in turn can be
                 # either single dict with action, or a list of dicts with action
-                for event_type in ('on', 'off', 'trigged'):
+                for event_type in ch.get_pio_event_values():
                     # True/false is used since YAML converts 'on' to True, 'off' to False
                     event_type_key = event_type
                     if event_type == 'on': event_type_key = True
@@ -88,7 +85,7 @@ class ActionEventHandler(ThreadedOwEventHandler):
                     if not by_ch:
                         by_ch = event_handlers_by_dev[dev.id] = {}
                     if not by_type:
-                        by_type = by_ch[ch.num] = {}
+                        by_type = by_ch[ch.name] = {}
                     event_actions = by_type[event_type] = []
 
                     # Normalize actions_for_type to list, if it is a single entry only
@@ -122,9 +119,10 @@ class ActionEventHandler(ThreadedOwEventHandler):
 
         try:
             by_ch = self.event_handlers_by_dev[event.device_id.id]
-            by_type = by_ch[event.channel.num]
+            by_type = by_ch[event.channel]
             actions = by_type[event.value.lower()]
         except KeyError:
+            #self.log.debug("No handler found for event %s", event)
             return
 
         for action in actions:

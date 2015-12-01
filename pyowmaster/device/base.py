@@ -69,6 +69,29 @@ class OwDevice(Device):
                 config.get(('devices', (self.id, self.type), 'max_dir_time'), 2)
             ]
 
+    def get_channel(self, name_or_num):
+        """If device supports channels, return channel identified by name_or_num.
+        If device does not have channel support, return None. If channel not found, return False
+        """
+        if not name_or_num or not hasattr(self, 'channels'):
+            return None
+
+        # Lookup channel
+
+        channel_list = self.channels
+        if isinstance(self.channels, dict):
+            if name_or_num in self.channels:
+                return self.channels[name_or_num]
+
+            channel_list = self.channels.values()
+
+        for c in channel_list:
+            if c.num == name_or_num or c.name == name_or_num:
+                return c
+
+        return False
+
+
     def ow_read(self, sub_path, uncached=False):
         if not uncached:
             path = self.path
@@ -193,3 +216,10 @@ class OwChannel(object):
             alias = " (alias %s)" % self.alias
         return "%s %s%s" % (self.__class__.__name__, self.name, alias)
 
+    def get_pio_event_values(self):
+        """pywomaster.event.actionhandler uses this to determine which PIO event values this channel may dispatch"""
+        return ()
+
+    def destroy(self):
+        """Called on some devices when channel disappears"""
+        pass
