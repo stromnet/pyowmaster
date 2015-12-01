@@ -17,58 +17,189 @@
 #
 from pyowmaster.device.base import OwDevice
 from pyowmaster.device.pio import *
-from pyowmaster.event.events import OwAdcEvent, OwCounterEvent
+from pyowmaster.event.events import OwAdcEvent, OwCounterEvent, OwPIOEvent
+from pyowmaster.exception import InvalidChannelError
+from pyownet.protocol import OwnetError
+import time
 
 ADC_MIN = 0
 ADC_MAX = 65535
 
+# Register of channel name => implementing classes
+CH_TYPES = {}
 def register(factory):
     factory.register("F0", MoaT)
 
+    CH_TYPES['adc'] = MoaTADCChannel
+    CH_TYPES['port'] = MoaTPortChannel
+    CH_TYPES['count'] = MoaTCountChannel
+
 class MoaT(OwDevice):
+    """Implements communcations towards the MoaT device, a custom 1-Wire slave for Atmel AVR.
+
+    The slave code can be found: https://github.com/M-o-a-T/owslave
+    Requires owfs with MoaT support (currently not merged): https://github.com/M-o-a-T/owfs
+
+    Handles the following types:
+        - count
+        - port
+        - adc
+        - status (device reboot reason)
+        - alarm (alarm triggered by any of the above)
+
+    Automatically scans the device's properties for it's configuration, and creates
+    the appropriate channels.
+
+    The count type only does periodic reading, and emits a OwCounterEvent for each channel
+    on every scan. Alarms are silenced, but otherwise ignored.
+
+    The port type supports input using the OwPIOEvent with on/off values. It also
+    supports set_output from action handler.
+    Events are only dispatched as results of alarms; no polling.
+
+    The adc type can be configured either as plain ADC which reports an OwAdcEvent on
+    every scan, in which case alarms are silenced, but ignored.
+    Alternatively it can be configured with different "states", where each state is
+    represented by an upper and a lower threshold. As long as the value is within these
+    limits, the channel is said to be in that particular state.
+
+    On each state change, an OwPIOEvent is emitted with the state name as value. This
+    should be trigged by alarms, but if undetected change is seen in regular scan,
+    the event will be emitted as well.
+    For really quick state changes, where the value is returned to the previous state
+    before we get a chance to read it, will still trigger an event with the nearest
+    state, i.e. the one above or below the current one. This is possible since the
+    alarm contains the threshold crossed (upper/lower). This can be disabled for each state.
+
+    The status type may alarm when the device is resetted. On device reboot,
+    the status will alarm and we will re-configure the device. Any alarms which
+    arrive together with this status alarm will be ignored.
+    """
     def __init__(self, ow, owid):
         super(MoaT, self).__init__(ow, owid)
         self.device_name = None
 
     def config(self, config):
         super(MoaT, self).config(config)
+
+        # Keep config for future re-configuration
+        self.dev_cfg = config
+
+        # Clear reboot status; we're re-initing anyway now
+        try:
+            self.log.debug("%s: Clearing reboot reason indicator; initial configuration", self)
+            self.ow_read_str('status/reboot', uncached=True)
+        except OwnetError:
+            # Ignore if node did not exist, i.e. no status support
+            pass
+
         self.channels = {}
+        self.init_channels(config)
+
+    def reboot_detected(self, reason):
+        """Call when reboot is detected, triggers re-init of all channels"""
+        self.log.warn("%s: device rebooted, trigged by '%s'", self, reason)
+        self.init_channels(self.dev_cfg)
+
+    def init_channels(self, config):
+        """Detect device configuration and initialize all channels"""
 
         self.device_name = self.ow_read_str('config/name', uncached=True)
 
         # Probe device for what kind of ports and channels it has
         # types is a new-line delimited list of <type>=<num>
         types = self.ow_read_str('config/types', uncached=True)
+
+        # List of used channel types with read_all support
+        self.combined_read_supported = []
+
+        seen_channels = []
+
         for line in types.split('\n'):
             (ch_type, count) = line.split('=')
             count = int(count)
-            self.log.debug("%s has %d channels of type %s", self, count, ch_type)
+            self.log.debug("%s: got %d channels of type %s", self, count, ch_type)
+
+            if ch_type not in CH_TYPES:
+                self.log.debug("Ignoring unknown channel type %s", ch_type)
+                continue
+
+            # init from type registry
+            clsref = CH_TYPES[ch_type]
+
+            if hasattr(clsref, 'read_all'):
+                # ensure it is a static method
+                self.combined_read_supported.append(ch_type)
+
             # MoaT channels are numbered from 1
             for ch_num in range(1, count+1):
                 ch_name = '%s.%d' % (ch_type, ch_num)
 
-                if ch_type == 'adc':
-                    ch = MoaTADCChannel(ch_type, ch_num, config, self)
-                elif ch_type == 'port':
-                    ch = MoaTPortChannel(ch_type, ch_num, config, self)
-                elif ch_type == 'count':
-                    ch = MoaTCountChannel(ch_type, ch_num, config, self)
-                else:
-                    continue
+                # Only create on first init; else re-init
+                if ch_name not in self.channels:
+                    ch = clsref(ch_type, ch_num, config, self)
+                    self.channels[ch.name] = ch
 
-                self.channels[ch.name] = ch
-                ch.check_alarm_config()
+                seen_channels.append(ch.name)
+
+        # Clean up dead channels, if we was re-inited
+        for ch in self.channels.keys():
+            if ch not in seen_channels:
+                self.channels[ch].destroy()
+                del self.channels[ch]
+
+        # Now (re-)init each channel
+        values_by_type = self.read_combined()
+        for ch in self.channels.values():
+            if ch.ch_type in values_by_type:
+                ch.init(values_by_type[ch.ch_type][ch.ch_num - 1])
+            else:
+                ch.init()
+
+    def read_combined(self):
+        """Read every channel types 'all'  property to get all channel values in one shot
+        Returns a dict with type => array of values"""
+        values_by_type = {}
+        for ch_type in self.combined_read_supported:
+            all_values = CH_TYPES[ch_type].read_all(self)
+            values_by_type[ch_type] = all_values
+
+        return values_by_type
+
 
     def on_seen(self, timestamp):
+        values_by_type = self.read_combined()
+
         for ch in self.channels.values():
-            ch.on_seen(timestamp)
+            if ch.ch_type in values_by_type:
+                ch.on_seen(timestamp, values_by_type[ch.ch_type][ch.ch_num - 1])
+            else:
+                ch.on_seen(timestamp)
 
     def on_alarm(self, timestamp):
-        self.log.debug("Device alarmed")
+        self.log.debug("%s: Device alarmed", self)
         # Find out which alarm sources we got
-        sources = self.ow_read_str('alarm/sources', uncached=True).split(',')
+        sources = self.ow_read_str('alarm/sources', uncached=True)
+        if len(sources) == 0:
+            self.log.warn("%s: Device alarmed, but empty sources?", self)
+            return
+
+        self.log.debug("Handling sources '%s'", sources)
+
+        sources = sources.split(',')
+
+        if 'status' in sources:
+            # Handled status first, as it might skip other alarms.
+            sources.remove('status')
+            sources.insert(0,'status')
+
         for port_type in sources:
-            ports = self.ow_read_str('alarm/%s' % port_type, uncached=True).split(',')
+            ports = self.ow_read_str('alarm/%s' % port_type, uncached=True)
+            if len(ports) == 0:
+                self.log.warn("%s: Device alarmed on %s, but non of the channels alarmed", self, port_type)
+                continue
+
+            ports = ports.split(',')
 
             # Read values of all the alarmed ones
             self.log.debug("Alarm on %s: %s", port_type, ports)
@@ -80,13 +211,44 @@ class MoaT(OwDevice):
                     adc_thresh = port_no[0]
                     port_no = port_no[1:]
 
+                if port_type == 'status':
+                    if self.on_status_alarm(timestamp, port_no) == False:
+                        # Abort alarm processing entirely
+                        return
+                    continue
+
                 ch_name = '%s.%s' % (port_type, port_no)
                 ch = self.channels.get(ch_name, None)
                 if not ch:
                     self.log.debug("Ignoring unknown channel %s", ch_name)
                     continue
 
-                ch.on_alarm(timestamp)
+                # No reading of common pin state here.. Could be usable for port though?
+                ch.on_alarm(timestamp, adc_thresh)
+
+    def on_status_alarm(self, timestamp, status_name):
+        val = self.ow_read_str('status/%s' % status_name, uncached=True)
+        if status_name == 'reboot':
+            # Device rebooted, and we now know why
+            self.reboot_detected(val)
+
+            # Thus no need to process further alarms.
+        else:
+            self.log.warn("%s: Unknown status field %s: %s", self, status_name, val)
+
+        return False
+
+    def set_output(self, channel, value):
+        """Allow controlling of 'port' channels."""
+        if isinstance(channel, MoaTChannel):
+            ch = channel
+        else:
+            ch = self.channels[channel]
+
+        if not hasattr(ch, 'set_output'):
+            raise InvalidChannelError("Channel does not support output control")
+
+        ch.set_output(value)
 
 
     def __str__(self):
@@ -100,39 +262,90 @@ class MoaTChannel(OwChannel):
         ch_type should be 'port', 'adc' or similar.
         ch_num should be the 1-based index of the channel"""
 
+        self.num = None
+        self.ch_type = ch_type
+        self.ch_num = ch_num
+
         name = '%s.%d' % (ch_type, ch_num)
         ch_cfg = config.get(('devices', (device.id, device.type), name), {})
+
+        # If explicitly set to False, we mark this channel disabled.
+        # The channel is still kept, so we can disable and silence any alarms.
+        self.disabled = ch_cfg == False
+        if self.disabled:
+            # Everything underlying expects a dict
+            ch_cfg = {}
 
         super(MoaTChannel, self).__init__(ch_num, name, ch_cfg)
 
         self.device = device
         self.log = self.device.log
 
-    def on_seen(self, timestamp):
-        self.check_alarm_config()
-
-    def on_alarm(self, timestamp):
+    def init(self, value=None):
+        """Called when channel should be (re)inited
+        If the channel type supports grouped reading, the value parameter will be set with
+        the value we've just read.
+        """
         pass
 
-    def check_alarm_config(self, inital=False):
+    def on_seen(self, timestamp, value=None):
+        """Called on every periodic device scan, where this device was seen.
+        If the channel type supports grouped reading, the value parameter will be set with
+        the value we've just read.
+        """
         pass
 
+    def on_alarm(self, timestamp, extra=None):
+        pass
+
+
+def port_value_to_event_type(value):
+    return OwPIOEvent.ON if value == 1 else OwPIOEvent.OFF
 
 class MoaTPortChannel(MoaTChannel):
     """A OwChannel for MoaT Port channels"""
     def __init__(self, ch_type, ch_num, config, device):
         super(MoaTPortChannel, self).__init__(ch_type, ch_num, config, device)
 
-    def on_alarm(self, timestamp):
-        self.read()
+    @classmethod
+    def read_all(cls, device):
+        """Read all port values from this device"""
+        values = device.ow_read_int_list('ports', uncached=True)
+        device.log.debug("%s: read all ports: %s", device, values)
+        return values
+
+    def init(self, value):
+        """Initialize the port. Ports are always read grouped, so it always has an initial value"""
+        self.value = value
+
+        # Pretend to be an output; setpio action checks this on init
+        self.is_output = True
+
+        event_type = port_value_to_event_type(self.value)
+        self.device.emit_event(OwPIOEvent(time.time(), self.name, event_type, True))
+
+    def on_alarm(self, timestamp, extra=None):
+        prev_value = self.value
+        self.value = self.read()
+
+        if self.value != prev_value:
+            event_type = port_value_to_event_type(self.value)
+            self.device.emit_event(OwPIOEvent(timestamp, self.name, event_type, False))
 
     def read(self):
-        """Read and update value"""
+        """Read latest value"""
         value = int(self.device.ow_read(self.name, uncached=True))
-        self.log.debug("Value of %s: %d",
-                self.name, value)
+        self.log.debug("%s %s: Value: %d", self.device, self.name, value)
+        return value
 
-        self.value = value
+    def set_output(self, value):
+        """Toggle an output port between 1/0 mode; what this means depends on device configuration"""
+        if value: out_value = 1
+        else: out_value = 0
+
+        self.log.info("%s %s: Writing %d", self.device, self.name, out_value)
+        self.device.ow_write(self.name, out_value)
+
 
 class MoaTCountChannel(MoaTChannel):
     """A OwChannel for MoaT Count channels"""
@@ -140,23 +353,23 @@ class MoaTCountChannel(MoaTChannel):
         super(MoaTCountChannel, self).__init__(ch_type, ch_num, config, device)
 
     def on_seen(self, timestamp):
-        self.read()
-        ev=OwCounterEvent(timestamp, self.name, self.value)
+        if self.disabled:
+            return
 
-        self.log.debug("Emitting event %s", ev)
-        self.device.emit_event(ev)
+        value = self.read()
 
-    def on_alarm(self, timestamp):
-        # Just silence it for now
+        self.log.debug("%s %s: Value: %d", self.device, self.name, value)
+        self.device.emit_event(OwCounterEvent(timestamp, self.name, value))
+
+    def on_alarm(self, timestamp, extra=None):
+        """Alarms on count channels are ignored for now"""
         self.read()
 
     def read(self):
-        """Read and update value"""
+        """Read value"""
         value = int(self.device.ow_read(self.name, uncached=True))
-        self.log.debug("Value of %s: %d",
-                self.name, value)
-
-        self.value = value
+        self.log.debug("%s %s: Value: %d", self.device, self.name, value)
+        return value
 
 class MoaTADCChannel(MoaTChannel):
     """A OwChannel for MoaT ADC channels"""
@@ -171,10 +384,14 @@ class MoaTADCChannel(MoaTChannel):
         self.low_threshold = ADC_MAX
         self.high_threshold = ADC_MIN
 
+        if self.disabled:
+            return
+
         # Find states configuration under device config, either ID or fallback on device type,
         # and below that the channel name, or fallback channel type (adc), and key 'states'
         states = config.get(('devices', (self.device.id, self.device.type), ('adc', self.name), 'states'), None)
         if states:
+            self.current_state = None
             if isinstance(states, str):
                 # If configured as string, look for a common reference.
                 # These can be placed under devices/MoaT/adc/state_template/<name>
@@ -183,9 +400,9 @@ class MoaTADCChannel(MoaTChannel):
                 if not states:
                     raise ConfigurationError("%s: Invalid ADC state reference %s" % (self.name, template_name))
 
-            self.configure_states(states)
+            self.build_states(states)
 
-    def configure_states(self, states):
+    def build_states(self, states):
         """Read a number of states from the configuration
 
         Under channel config key 'states', an object with different
@@ -205,59 +422,178 @@ class MoaTADCChannel(MoaTChannel):
                     high: 45000
                 cut:
                     low: 45000
+
+        The states may also have the key 'guess' which can be set to False to
+        prohibit guessing (see guess_state_entry).
         """
         self.states = []
         for state_name in states.keys():
             # Create internal repr of each state, tuple of (name,low,high)
             low = states.get((state_name, 'low'), ADC_MIN)
             high = states.get((state_name, 'high'), ADC_MAX)
-            self.states.append((state_name, low, high))
+            guess = states.get((state_name, 'guess'), True)
+            self.states.append((state_name, low, high, guess))
 
         # Sort by low
         self.states.sort(lambda a,b: cmp(a[1], b[1]))
 
-        # Check sanity?
+        # TODO: Check sanity?
 
-    def on_seen(self, timestamp):
-        super(MoaTADCChannel, self).on_seen(timestamp)
+    def get_state_entry(self, value):
+        """Get the state entry which corresponds to the given value, or None if none is matching"""
+        for s in self.states:
+            if value >= s[1] and value <= s[2]:
+                return s
 
-        # on_seen should call check_alarm_config, which calls read
-        # Check if we should emit any events
+        return None
+
+    def guess_state_entry(self, adc_threshold_crossed):
+        """Guess the state entry based on the current state and the threshold we crossed.
+        Used only when alarm is received, but value was within the current threshold set.
+
+        adc_threshold_crossed should be + or - for positive/negative threshold.
+
+        Note that this will only guess one step down/up from current state; if more steps
+        exist, it may get it wrong.
+        Disable guessing by adding 'guess: False' to any state definition we should not use
+        guessing on to get out from. Instead, the alarm will be ignored."""
+        prev = None
+        for n in range(len(self.states)):
+            if self.states[n][0] != self.current_state:
+                continue
+
+            if self.states[n][3] == False:
+                # Guess disabled for this state
+                return None
+
+            if adc_threshold_crossed == '-':
+                # We've crossed lower threshold of this state, return previous one
+                return self.states[max(0, n-1)]
+
+            if adc_threshold_crossed == '+':
+                # We've crossed upper threshold of this state, return next one
+                return self.states[min(len(self.states)-1, n+1)]
+
+        return None
+
+    def get_pio_event_values(self):
+        """pywomaster.event.actionhandler uses this to determine which PIO event values this channel may dispatch"""
+        if not hasattr(self, 'states'):
+            return ()
+
+        return map(lambda x: x[0], self.states)
+
+    @classmethod
+    def read_all(cls, device):
+        """Read all ADC values from a device. Note that this does NOT return thresholds!"""
+        values = device.ow_read_int_list('adcs', uncached=True)
+        device.log.debug("%s: read all adcs: %s", device, values)
+        return values
+
+    def read(self):
+        """Read and return (value, slow_threshold, high_threshold)"""
+        (value, low_threshold, high_threshold) = self.device.ow_read_int_list(self.name, uncached=True)
+        if not self.disabled:
+            self.log.debug("%s %s: Value: %d (low %d, high %d)",
+                    self.device, self.name, value, low_threshold, high_threshold)
+
+        return (value, low_threshold, high_threshold)
+
+    def init(self, value):
+        """Channel initialization; ensure the alarm config is proper"""
+        self.value = value
+        if hasattr(self, 'states'):
+            s = self.get_state_entry(value)
+            self.set_state(time.time(), s, True)
+        else:
+            # Disable alarms
+            self.set_thresholds(ADC_MAX, ADC_MIN)
+
+    def on_seen(self, timestamp, value):
+        """ADCs can read all values, value is expected to be set"""
+        self.value = value
+        if self.disabled:
+            return
+
         if not hasattr(self, 'states'):
             # Regular ADC mode, just emit the value
             self.device.emit_event(OwAdcEvent(timestamp, self.name, self.value))
+        else:
+            # For state mode, we do a check to ensure we are in the state we think
+            # we are
+            s = self.get_state_entry(value)
+            if self.current_state != s[0]:
+                self.log.warn("%s %s: Expected to be in state %s, was in state %s (value %d)",
+                    self.device, self.name, self.current_state, s[0], value)
+                self.set_state(timestamp, s, False)
 
-    def on_alarm(self, timestamp):
-        self.read()
+    def on_alarm(self, timestamp, adc_threshold_crossed):
+        (self.value, self.low_threshold, self.high_threshold) = self.read()
 
-        # Calculate possibly new thresholds and set them
-        (low_threshold, high_threshold) = self.calculate_auto_thresholds()
+        new_state_ent = None
+        if hasattr(self, 'states'):
+            # find out what state we are in
+            new_state_ent = self.get_state_entry(self.value)
+            if not new_state_ent:
+                self.log.warn("%s %s: got alarm on value %d, does not match any configured state. Disabling thresholds",
+                        self.device, self.name, self.value)
+                self.set_thresholds(ADC_MAX, ADC_MIN)
+                return
+
+            if new_state_ent[0] == self.current_state:
+                # No change, but we DID get an alarm. Too fast for our polling?
+                # Find out which state we may have gone to by looking at adc_threshold_crossed
+                # which is + or -
+                new_state_ent = self.guess_state_entry(adc_threshold_crossed)
+                if not new_state_ent:
+                    self.log.warn("%s %s: got alarm on value %d, does not match any configured state, and current state does not allow guessing. Ignoring",
+                            self.device, self.name, self.value)
+                    return
+
+                self.log.debug("%s %s: got %s alarm on value %d within current threshold, guessing state %s",
+                        self.device, self.name, adc_threshold_crossed, self.value,
+                        new_state_ent[0])
+            else:
+                self.log.debug("%s %s: got %s alarm on value %d, matches new state %s",
+                        self.device, self.name, adc_threshold_crossed, self.value,
+                        new_state_ent[0])
+
+            self.set_state(timestamp, new_state_ent, False)
+        else:
+            # Should not get alarms; Thresholds should already be disbled?
+            self.log.warn("%s %s: got alarm on value %d, but thresholds should have been disabled",
+                    self.device, self.name, self.value)
+            self.set_thresholds(ADC_MAX, ADC_MIN)
+
+    def set_state(self, timestamp, state_ent, is_reset):
+        """Set the current state & emit an event announcing the change, then reconfigure thresholds"""
+        self.log.debug("%s %s: now in state %s (prev %s)", self.device, self,
+                state_ent[0], self.current_state)
+        self.current_state = state_ent[0]
+
+        ev = OwPIOEvent(timestamp, self.name, self.current_state, is_reset)
+        self.device.emit_event(ev)
+
+        # Calculate automatic thresholds and set them
+        (low_threshold, high_threshold) = self.calculate_state_thresholds(\
+                self.value, state_ent)
         self.set_thresholds(low_threshold, high_threshold)
 
-    def calculate_auto_thresholds(self):
-        """Calculate new thresholds based on configuration and current value.
-        Note that read() must be called prior to this to have an accurate and current value"""
+    def calculate_state_thresholds(self, value, state_ent):
+        """Calculate new thresholds based on state configuration and current value/state.
+        """
         low_threshold = None
         high_threshold = None
-        if hasattr(self, 'states'):
-            for s in self.states:
-                if self.value >= s[1] and self.value <= s[2]:
-                    # Good set!
-                    low_threshold = s[1]
-                    high_threshold = s[2]
-                    self.log.info("%s %s is in state %s", self.device, self, s[0])
-                    break
 
-            if low_threshold == None:
-                self.log.warn("%s value is outside of any predefined threshold sets: %d", self, self.value)
-                # Calculate some defaults surrounding this value
-                low_threshold = max(ADC_MIN, self.value-5000)
-                high_threshold = min(ADC_MAX, self.value+5000)
-
-        # If we are equal to min or max, disable those thresholds, or we will just
-        # re-trigger over and over (that is, if value = 0/ADC_MAX)
-        if low_threshold in (None, ADC_MIN):  low_threshold = ADC_MAX
-        if high_threshold in (None, ADC_MAX): high_threshold = 0
+        if state_ent is not None:
+            low_threshold = state_ent[1]
+            high_threshold = state_ent[2]
+        else:
+            self.log.warn("%s %s: value is outside of any predefined threshold sets: %d",
+                    self.device, self.name, value)
+            # Calculate some defaults surrounding this value
+            low_threshold = max(ADC_MIN, value-5000)
+            high_threshold = min(ADC_MAX, value+5000)
 
         return (low_threshold, high_threshold)
 
@@ -265,47 +601,23 @@ class MoaTADCChannel(MoaTChannel):
         """Write wanted thresholds to the device.
 
         If low/high params are set, we update wanted_xx_threshold with those values.
+        This is later used in the check_alarm_config method.
         """
         if low_threshold != None: self.wanted_low_threshold = low_threshold
         if high_threshold != None: self.wanted_high_threshold = high_threshold
 
-        self.log.debug("Writing new thresholds for ADC %d (low %d, high %d)",
-                self.num,
+        # If we are equal to min or max, disable those thresholds, or we will just
+        # re-trigger over and over (that is, if value = 0/ADC_MAX)
+        if self.wanted_low_threshold in (None, ADC_MIN):  self.wanted_low_threshold = ADC_MAX
+        if self.wanted_high_threshold in (None, ADC_MAX): self.wanted_high_threshold = 0
+
+        self.log.debug("%s %s: Writing new thresholds (low %d, high %d)",
+                self.device, self,
                 self.wanted_low_threshold, self.wanted_high_threshold)
 
         self.device.ow_write(self.name, '%d,%d' % (self.wanted_low_threshold, self.wanted_high_threshold))
 
+        # Expect written to be the new actuals
         self.low_threshold = self.wanted_low_threshold
         self.high_threshold = self.wanted_high_threshold
-
-    def read(self):
-        """Read values, and update the properties value, low_threshold, high_threshold"""
-        (value, low_threshold, high_threshold) = self.device.ow_read_int_list(self.name, uncached=True)
-        self.log.debug("Value of %s: %d (low %d, high %d)",
-                self.name, value, low_threshold, high_threshold)
-
-        self.value = value
-        self.low_threshold = low_threshold
-        self.high_threshold = high_threshold
-
-    def check_alarm_config(self):
-        """Read current values, and check if the thresholds are within expected limits"""
-        self.read()
-
-        if self.wanted_low_threshold == None and self.wanted_high_threshold == None:
-            # Initial startup/setup, configure thresholds
-            (low_threshold, high_threshold) = self.calculate_auto_thresholds()
-
-            # Changed?
-            if self.wanted_low_threshold != low_threshold:
-                self.wanted_low_threshold = low_threshold
-            if self.wanted_high_threshold != high_threshold:
-                self.wanted_high_threshold = high_threshold
-
-        # Is the currently wanted treshhold the same as the effective one?
-        if self.low_threshold != self.wanted_low_threshold or \
-                self.high_threshold != self.wanted_high_threshold:
-            self.log.warn("%s thresholds are invalid (low: %d, high: %d). Restoring",
-                    self, self.low_threshold , self.high_threshold)
-            self.set_thresholds()
 
