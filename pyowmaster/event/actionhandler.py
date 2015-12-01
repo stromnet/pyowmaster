@@ -113,7 +113,7 @@ class ActionEventHandler(ThreadedOwEventHandler):
         self.event_handlers_by_dev = event_handlers_by_dev
 
         if failures > 0:
-            self.log.warn("One or more error occured during action initialization")
+            self.log.warn("One or more error(s) occured during action initialization")
 
     def handle_event_blocking(self, event):
         # XXX: Only PIO events
@@ -223,7 +223,9 @@ class ActionFactory(object):
                 break
 
     def register(self, name, class_ref):
-        assert self.action_modules.get(name) == None, "Action %s already registered" % name
+        if self.action_modules.get(name) == class_ref:
+            return
+        assert self.action_modules.get(name) == None, "Action %s already registered with %s" % (name, class_ref)
         self.action_modules[name] = class_ref
 
 
