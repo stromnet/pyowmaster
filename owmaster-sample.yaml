@@ -44,6 +44,31 @@ devices:
     min_temp: -20
     max_temp: 80
 
+  # MoaT device base config
+  MoaT:
+    adc:
+      state_templates:
+        # Define a state_template for all dualloop sensors connected to ADCs
+        dualloop:
+          # For ADC channels connected to a dual-loop circuit with EOL/Bypass/pullup resistors
+          # with equal values (12k, 20k or so).
+          # If we are in short/cut and get alarms to quickly to properly register, ignore
+          # them (do not guess).
+          short:
+            high: 28000
+            guess: False
+          closed:
+            # Expect ~32700
+            low: 28000
+            high: 37000
+          open:
+            # Expect ~43600
+            low: 37000
+            high: 47000
+          cut:
+            low: 47000
+            guess: False
+
   28.123457000000:
     # Specific settings for this device temperature device
     alias: freezer
@@ -77,11 +102,11 @@ devices:
     # Most inputs are momentary
     ch.0:
       mode: input active high
-      trigged: 
+      trigged:
         - setpio.off: 29.211144200000.5
         - setpio.off: 12.212333330000.A
     ch.1: input active high
-      trigged: 
+      trigged:
         - setpio.off: 29.211144200000.5
         - setpio.on: 12.212333330000.A
     ch.2: input active high
@@ -108,6 +133,39 @@ devices:
 
     # Unused
     ch.7: input
+
+   # A MoaT device
+  F0.0BD200000000:
+    # This device is built with 8 ADCs and two ports configured as outputs
+    alias: moat-test
+
+    # ADC 1 and 2 are regular ADCs and will emit OwAdcEvent
+    # ADC 3 is configured as dual-loop input, will emit OwPIOEvent
+    adc.3:
+      # use 'dualloop' state template
+      states: dualloop
+
+      # Add some actionhandlers
+      cut:
+        # Let port1 + port2 indicate the state.
+        - setpio.off.include_reset: F0.0BD200000000.port.1
+        - setpio.off.include_reset: F0.0BD200000000.port.2
+      short:
+        - setpio.on.include_reset: F0.0BD200000000.port.1
+        - setpio.on.include_reset: F0.0BD200000000.port.2
+      closed:
+        - setpio.on.include_reset: F0.0BD200000000.port.1
+        - setpio.off.include_reset: F0.0BD200000000.port.2
+      open:
+        - setpio.off.include_reset: F0.0BD200000000.port.1
+        - setpio.on.include_reset: F0.0BD200000000.port.2
+
+    # ignore any values from these ADCs
+    adc.4: false
+    adc.5: false
+    adc.6: false
+    adc.7: false
+
 
 
 # Logging configuration
