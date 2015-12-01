@@ -24,6 +24,8 @@ class OwIdUtilTest(unittest.TestCase):
         self.assertEquals(parse_target('10.CB310B000800.A'), ('10.CB310B000800', 'A'))
         self.assertEquals(parse_target('10CB310B000800.A'), ('10CB310B000800', 'A'))
         self.assertEquals(parse_target('10.CB310B000800'), ('10.CB310B000800', None))
+        self.assertEquals(parse_target('F0.0BD2C6D4CC6D.port.1'), ('F0.0BD2C6D4CC6D', 'port.1'))
+        self.assertEquals(parse_target('F0.0BD2C6D4CC6D.port.2'), ('F0.0BD2C6D4CC6D', 'port.2'))
         self.assertEquals(parse_target('somedev'), ('somedev', None))
         self.assertEquals(parse_target('somedev.A'), ('somedev', 'A'))
         self.assertEquals(parse_target('/Invalid/name/.A'), (None, None))

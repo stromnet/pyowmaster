@@ -18,11 +18,11 @@
 
 import re
 
-RE_DEV_ID = re.compile('([A-F0-9][A-F0-9]\.[A-F0-9]{12})')
-RE_DEV_ALIAS = re.compile('([A-Za-z0-9\-\_]+)')
+RE_DEV_ID = re.compile('([A-F0-9][A-F0-9]\.?[A-F0-9]{12})')
+RE_DEV_ALIAS = re.compile('^([A-Za-z0-9\-\_]+)$')
 
-RE_DEV_CHANNEL = re.compile('([A-F0-9][A-F0-9]\.[A-F0-9]{12})\.([0-9AB])')
-RE_ALIAS_CHANNEL = re.compile('([A-Za-z0-9\-\_]+)\.([0-9AB])')
+RE_DEV_CHANNEL = re.compile('([A-F0-9][A-F0-9]\.?[A-F0-9]{12})\.([0-9A-Za-z\.]+)')
+RE_ALIAS_CHANNEL = re.compile('([A-Za-z0-9\-\_]+)\.?([0-9A-Za-z\.]+)')
 
 def owid_from_path(id_or_path):
     """Tries to interpret an 1-Wire ID from a string"""
@@ -50,19 +50,20 @@ def parse_target(tgt):
         dev_id = m.group(1)
         ch = m.group(2)
     else:
-        # Try with alias regexp
-        m = RE_ALIAS_CHANNEL.match(tgt)
-        if m:
-            dev_id = m.group(1)
-            ch = m.group(2)
-        else:
-            # Try with only id
-            dev_id = owid_from_path(tgt)
-            ch = None
+        # Try with only id
+        ch = None
+        dev_id = owid_from_path(tgt)
 
-            # If that wasn't an ID, try as plain alias
-            if dev_id == None and is_valid_alias(tgt):
+        if dev_id is None:
+            # Try as plain alias
+            if is_valid_alias(tgt):
                 dev_id = tgt
+            else:
+                # Try with alias regexp
+                m = RE_ALIAS_CHANNEL.match(tgt)
+                if m:
+                    dev_id = m.group(1)
+                    ch = m.group(2)
 
     return (dev_id, ch)
 
