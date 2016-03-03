@@ -33,12 +33,14 @@ PIO_MODE_ACTIVE_HIGH  = 0b10000
 def test_bits(value, mask):
     return (value & mask) == mask
 
-class OwPIOChannel(OwChannel):
-    """A OwChannel for devices with PIO"""
+class OwPIOBase(object):
+    """A shared base class for basic PIO pin channels"""
 
-    def __init__(self, num, name, cfg):
-        """Create a new OwPIOChannel, with a "mode" configuration parsed
+    def pio_base_init(self, cfg):
+        """Init a new OwPIOBase, with a "mode" configuration parsed
         from the cfg dict key 'mode'
+
+        To be called from __init__ in sub class.
 
         The mode string should be a combination of the following strings:
             input momentary (default)
@@ -51,8 +53,6 @@ class OwPIOChannel(OwChannel):
             active high
 
         """
-        super(OwPIOChannel, self).__init__(num, name, cfg)
-
         modestr = cfg.get('mode', 'input momentary')
         self.mode = self.parse_pio_mode(modestr)
         # Todo: add "debounce" possibility, i.e. block input
@@ -101,8 +101,8 @@ class OwPIOChannel(OwChannel):
 
         return s
 
-    def get_pio_event_values(self):
-        """pywomaster.event.actionhandler uses this to determine which PIO event values this channel may dispatch"""
+    def get_event_types(self):
+        """pywomaster.event.actionhandler uses this to determine which PIO event types this channel may dispatch"""
         if self.is_input_momentary:
             return ('trigged',)
         else:
@@ -131,6 +131,13 @@ class OwPIOChannel(OwChannel):
     @property
     def is_active_low(self):
         return not test_bits(self.mode, PIO_MODE_ACTIVE_HIGH)
+
+class OwPIOChannel(OwPIOBase, OwChannel):
+    """A OwChannel for devices with PIO"""
+    def __init__(self, num, name, cfg):
+        """Create a new OwPIOChannel, a OwChannel with an OwPIOBase"""
+        super(OwPIOChannel, self).__init__(num, name, cfg)
+        self.pio_base_init(cfg)
 
     def is_set(self, value):
         """Given a bitmask value, return this channels bit position value as a True(1)/False(0)"""
@@ -236,7 +243,7 @@ class OwPIODevice(OwDevice):
             else:
                 event_type = OwPIOEvent.OFF
 
-            event = OwPIOEvent(timestamp, ch, event_type, True)
+            event = OwPIOEvent(timestamp, ch.name, event_type, True)
             self.log.debug("%s: ch %s event: %s", \
                 self, ch.name, event_type)
             self.emit_event(event)
@@ -326,7 +333,7 @@ class OwPIODevice(OwDevice):
                 raise RuntimeError("Invalid input mode %d for channel %s" % (mode, ch))
 
             if event_type:
-                event = OwPIOEvent(timestamp, ch, event_type)
+                event = OwPIOEvent(timestamp, ch.name, event_type)
                 self.log.debug("%s: ch %s event: %s", \
                     self, ch.name, event_type)
                 self.emit_event(event)

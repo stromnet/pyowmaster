@@ -66,9 +66,9 @@ class ActionEventHandler(ThreadedOwEventHandler):
             for ch in channel_list:
                 by_type = None
 
-                # Ch config can have on/off/trigged config keys, which in turn can be
-                # either single dict with action, or a list of dicts with action
-                for event_type in ch.get_pio_event_values():
+                # Find any configuration for each of the event types this channel may dispatch
+                self.log.debug("%s ch %s can do %s", dev, ch, ch.get_event_types())
+                for event_type in ch.get_event_types():
                     # True/false is used since YAML converts 'on' to True, 'off' to False
                     event_type_key = event_type
                     if event_type == 'on': event_type_key = True
@@ -76,8 +76,10 @@ class ActionEventHandler(ThreadedOwEventHandler):
                     if not event_type_key in ch.config:
                         continue
 
+                    # Ch configuration can have a sub-entry for each event type
+                    # These values can in turn be either a single dict with action,
+                    # or a list of dicts with action
                     actions_for_type = ch.config[event_type_key]
-
                     if actions_for_type is None:
                         continue
 

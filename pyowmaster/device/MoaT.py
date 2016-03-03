@@ -136,9 +136,11 @@ class MoaT(OwDevice):
                 ch_name = '%s.%d' % (ch_type, ch_num)
 
                 # Only create on first init; else re-init
-                if ch_name not in self.channels:
+                ch = self.channels.get(ch_name, None)
+                if not ch:
                     ch = clsref(ch_type, ch_num, config, self)
                     self.channels[ch.name] = ch
+                    self.log.debug("%s: Configured ch %s", self, ch)
 
                 seen_channels.append(ch.name)
 
@@ -269,6 +271,10 @@ class MoaTChannel(OwChannel):
         name = '%s.%d' % (ch_type, ch_num)
         ch_cfg = config.get(('devices', (device.id, device.type), name), {})
 
+        # If set to single string, interpret as "mode" (mimics OwPIODevice)
+        if isinstance(ch_cfg, str):
+            ch_cfg = {'mode': ch_cfg}
+
         # If explicitly set to False, we mark this channel disabled.
         # The channel is still kept, so we can disable and silence any alarms.
         self.disabled = ch_cfg == False
@@ -299,13 +305,13 @@ class MoaTChannel(OwChannel):
         pass
 
 
-def port_value_to_event_type(value):
-    return OwPIOEvent.ON if value == 1 else OwPIOEvent.OFF
-
-class MoaTPortChannel(MoaTChannel):
-    """A OwChannel for MoaT Port channels"""
+class MoaTPortChannel(MoaTChannel, OwPIOBase):
+    """A OwChannel for MoaT Port channels, combined with OwPIOBase for configuration"""
     def __init__(self, ch_type, ch_num, config, device):
         super(MoaTPortChannel, self).__init__(ch_type, ch_num, config, device)
+
+        # Init PIO properties from per-device config
+        self.pio_base_init(self.config)
 
     @classmethod
     def read_all(cls, device):
@@ -314,23 +320,43 @@ class MoaTPortChannel(MoaTChannel):
         device.log.debug("%s: read all ports: %s", device, values)
         return values
 
+    def port_value_to_event_type(self, value):
+        if value == self.is_active_high:
+            event_type = OwPIOEvent.ON
+        else:
+            event_type = OwPIOEvent.OFF
+
     def init(self, value):
         """Initialize the port. Ports are always read grouped, so it always has an initial value"""
         self.value = value
 
-        # Pretend to be an output; setpio action checks this on init
-        self.is_output = True
+        if not self.is_input_toggle and not self.is_output:
+            return
 
-        event_type = port_value_to_event_type(self.value)
+        event_type = self.port_value_to_event_type(self.value)
         self.device.emit_event(OwPIOEvent(time.time(), self.name, event_type, True))
 
     def on_alarm(self, timestamp, extra=None):
         prev_value = self.value
         self.value = self.read()
 
-        if self.value != prev_value:
-            event_type = port_value_to_event_type(self.value)
+        has_changed = self.value != prev_value
+
+        if self.is_output or \
+            (self.is_input and self.is_input_toggle):
+            if has_changed:
+                event_type = self.port_value_to_event_type(self.value)
+
+        elif ch.is_input_momentary:
+            # Alarm => assume trigged
+            event_type = OwPIOEvent.TRIGGED
+        else:
+            raise RuntimeError("Invalid input mode %d for channel %s" % (self.mode, self))
+
+        if event_type:
             self.device.emit_event(OwPIOEvent(timestamp, self.name, event_type, False))
+        else:
+            self.log.debug("%s %s: alarm ignored", self.device, self.name)
 
     def read(self):
         """Read latest value"""
@@ -340,12 +366,23 @@ class MoaTPortChannel(MoaTChannel):
 
     def set_output(self, value):
         """Toggle an output port between 1/0 mode; what this means depends on device configuration"""
-        if value: out_value = 1
-        else: out_value = 0
+        if not self.is_output:
+            raise InvalidChannelError("Channel not configured as output")
+
+        active_high = self.is_active_high
+        if (value and active_high) or (not value and not active_high):
+            out_value = 1
+        else:
+            out_value = 0
 
         self.log.info("%s %s: Writing %d", self.device, self.name, out_value)
         self.device.ow_write(self.name, out_value)
 
+    def __str__(self):
+        alias = ""
+        if self.alias:
+            alias = " (alias %s)" % self.alias
+        return "%s %s%s, mode=%s" % (self.__class__.__name__, self.name, alias, self.modestr())
 
 class MoaTCountChannel(MoaTChannel):
     """A OwChannel for MoaT Count channels"""
@@ -476,8 +513,8 @@ class MoaTADCChannel(MoaTChannel):
 
         return None
 
-    def get_pio_event_values(self):
-        """pywomaster.event.actionhandler uses this to determine which PIO event values this channel may dispatch"""
+    def get_event_types(self):
+        """pywomaster.event.actionhandler uses this to determine which event types this channel may dispatch"""
         if not hasattr(self, 'states'):
             return ()
 

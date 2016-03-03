@@ -220,8 +220,8 @@ class OwChannel(object):
             alias = " (alias %s)" % self.alias
         return "%s %s%s" % (self.__class__.__name__, self.name, alias)
 
-    def get_pio_event_values(self):
-        """pywomaster.event.actionhandler uses this to determine which PIO event values this channel may dispatch"""
+    def get_event_types(self):
+        """pywomaster.event.actionhandler uses this to determine which event types this channel may dispatch"""
         return ()
 
     def destroy(self):
