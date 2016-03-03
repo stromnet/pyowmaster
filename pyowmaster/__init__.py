@@ -210,7 +210,7 @@ class OwMaster(object):
         unique_devices = set()
         for dev_id in ids:
             if dev_id in unique_devices:
-                self.log.warn("Duplicate device ID in scan: %s" % dev_id)
+                self.log.info("Duplicate device ID in scan: %s", dev_id)
                 self.stats.increment('error.scan_duplicate')
                 continue
 
@@ -219,16 +219,23 @@ class OwMaster(object):
             # Finds existing device or creates new, if family is known
             dev = self.inventory.find(dev_id, create=True)
             if dev == None:
+                # Not supported
                 continue
 
-            # We just seen it, mark it non-lost
             if dev.lost:
                 if dev.seen:
-                    self.log.warn("Device %s back online", dev)
-                    dev.lost = False
+                    # Was seen once, but then got lost
+                    if dev.lost > 2:
+                        self.log.warn("Device %s back online", dev)
+                    else:
+                        self.log.info("Device %s back online", dev)
                 else:
-                    # Only marked at very first time seen
-                    dev.seen = True
+                    # Was never seen, but configured and thus marked lost.
+                    self.log.info("Device %s now online", dev)
+                dev.lost = False
+
+            # Marked first time seen
+            dev.seen = True
 
             device_list.append(dev)
 
@@ -240,13 +247,20 @@ class OwMaster(object):
                     if not dev.lost:
                         # Not marked lost in earlier scans
                         if not dev.seen:
-                            # Never seen at all; must have been from configuration
+                            # Never seen, but configured.
                             self.log.warn("Device is configured but not on bus: %s", dev)
                         else:
                             # Got lost since last scan
-                            self.log.warn("Lost device %s", dev)
+                            self.log.info("Lost device %s (soft loss)", dev)
 
-                        dev.lost = True
+                        dev.lost = 1
+                    else:
+                        if dev.lost == 2 and dev.seen:
+                            # On second lost marking, emit WARN
+                            # This avoids WARN messages for devices which are intermintnly lost..
+                            self.log.warn("Lost device %s (lost for %d scans)", dev, dev.lost)
+
+                        dev.lost += 1
 
 
                 self.log.info("Missing %d (of %d) devices: %s",
