@@ -19,6 +19,7 @@
 import logging, logging.config
 import yaml, sys
 from yaml.scanner import ScannerError
+from yaml.parser import ParserError
 import time
 
 import pyownet.protocol
@@ -92,17 +93,18 @@ class Main:
 
         try:
             with open(self.cfgfile) as f:
+                # CATHC IN RELOAD!
                 cfg = yaml.load(f)
                 if not cfg:
                     cfg = {}
 
                 self.cfg = EnhancedMapping(cfg)
-        except ScannerError as e:
+        except (ParserError, ScannerError) as e:
             if hasattr(self, 'log'):
                 self.log.error("Failed to load configuration file %s: %s", self.cfgfile, e)
             else:
                 print("Failed to load configuration file %s: %s" % (self.cfgfile, e))
-                return False
+            return False
 
 #        import pprint
 #        pprint.pprint(self.cfg)
