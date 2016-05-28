@@ -146,8 +146,6 @@ class OwPIOChannel(OwPIOBase, OwChannel):
     def __str__(self):
         return "%s %s (alias %s), mode=%s" % (self.__class__.__name__, self.name, self.alias, self.modestr())
 
-
-
 class OwPIODevice(OwDevice):
     """Abstract base class for use with DS2406, DS2408 and similar PIO devices.
 

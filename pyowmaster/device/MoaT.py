@@ -571,7 +571,7 @@ class MoaTADCChannel(MoaTChannel):
         if hasattr(self, 'states'):
             # find out what state we are in
             new_state_ent = self.get_state_entry(self.value)
-            if not new_state_ent:
+            if new_state_ent is None:
                 self.log.warn("%s %s: got alarm on value %d, does not match any configured state. Disabling thresholds",
                         self.device, self.name, self.value)
                 self.set_thresholds(ADC_MAX, ADC_MIN)
@@ -582,7 +582,7 @@ class MoaTADCChannel(MoaTChannel):
                 # Find out which state we may have gone to by looking at adc_threshold_crossed
                 # which is + or -
                 new_state_ent = self.guess_state_entry(adc_threshold_crossed)
-                if not new_state_ent:
+                if new_state_ent is None:
                     self.log.warn("%s %s: got alarm on value %d, does not match any configured state, and current state does not allow guessing. Ignoring",
                             self.device, self.name, self.value)
                     return

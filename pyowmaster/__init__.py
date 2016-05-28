@@ -31,6 +31,7 @@ import importlib
 import time
 import traceback
 import logging
+import sys
 
 __version__ = '0.0.0'
 SCAN_FULL = 0
@@ -143,6 +144,11 @@ class OwMaster(object):
             return
 
         for module_name in modules.keys():
+            import_path = modules.get((module_name, 'import_path'), None)
+            if import_path and import_path not in sys.path:
+                self.log.debug("Adding %s to sys.path", import_path)
+                sys.path.append(import_path)
+
             self.log.debug("Initing module %s", module_name)
             m = importlib.import_module(module_name)
 
