@@ -200,6 +200,7 @@ class OwMaster(object):
                 ids = self.bus.ow_dir(uncached=True)
         except OwnetError, e:
             self.log.error("Bus scan failed: %s", e)
+            self.stats.gauge('bus.device_cnt', 0)
             return
 
         timestamp = time.time()
@@ -268,8 +269,12 @@ class OwMaster(object):
                 self.stats.increment('error.lost_devices', len(missing))
 
             # TODO: Handle some way
+            # Let event handler trigger something?
+
+        if alarm_mode:
+            self.stats.increment('bus.device_alarms', len(device_list))
         else:
-            self.stats.increment('bus.device_count', len(device_list))
+            self.stats.gauge('bus.device_cnt', len(device_list))
 
         simultaneous = {}
         for dev in device_list:
@@ -565,7 +570,7 @@ class DeviceInventory(object):
 class MasterStatistics:
     def __init__(self, queue, event_dispatcher, report_interval=60):
         self.log = logging.getLogger(type(self).__name__)
-        self.counters = {}
+        self.values = {}
         self.queue = queue
         self.event_dispatcher = event_dispatcher
         self.report_interval = report_interval
@@ -585,22 +590,33 @@ class MasterStatistics:
         The key shall be in the format "<counter>.<key>", and if has not been
         used before it will be pre-inited to 0 before incrementing it.
         """
-        if key not in self.counters:
+        if key not in self.values:
             if '.' not in key:
                 raise Exception("Statistics key should have the format <category>.<name>")
 
-            self.counters[key] = 0
+            self.values[key] = 0
 
 #        self.log.debug("Incrementing %s with %.3f", key, value)
-        self.counters[key] += value
+        self.values[key] += value
+
+    def gauge(self, key, value):
+        """Set a statistics gauge to a given vaule
+
+        The key shall be in the format "<gauge>.<key>".
+        """
+        if key not in self.values:
+            if '.' not in key:
+                raise Exception("Statistics key should have the format <category>.<name>")
+
+        self.values[key] = value
 
     def report(self):
         """Report all tracked values"""
         self.log.debug("Reporting statistics")
         timestamp = time.time()
-        for key in self.counters:
+        for key in self.values:
             (category, name) = key.split('.')
-            value = self.counters[key]
+            value = self.values[key]
 
             ev = OwStatisticsEvent(timestamp, category, name, value)
             self.event_dispatcher.handle_event(ev)
