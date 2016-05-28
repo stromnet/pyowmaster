@@ -23,6 +23,7 @@ class OwEventBase(object):
         self.timestamp = timestamp
         self.device_id = None
         self.is_reset = is_reset
+        self.channel = None
 
     def __str__(self):
         return "OwEvent[%d: %s, unknown]" % (self.timestamp, self.device_id)

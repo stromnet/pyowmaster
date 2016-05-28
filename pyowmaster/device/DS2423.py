@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-from pyowmaster.device.base import OwDevice
+from pyowmaster.device.base import OwDevice, OwChannel
 from pyowmaster.event.events import OwCounterEvent
 
 def register(factory):
@@ -25,6 +25,7 @@ class DS2423(OwDevice):
     """Handles DS2423 dual counter chip"""
     def __init__(self, ow, owid):
        super(DS2423, self).__init__(ow, owid)
+       self.channels = (OwChannel(0, 'A', {}), OwChannel(1, 'B', {}))
 
     def on_seen(self, timestamp):
         """Read A,B counter"""
@@ -33,7 +34,7 @@ class DS2423(OwDevice):
         self.emit_event(OwCounterEvent(timestamp, 'A', counters[0]))
         self.emit_event(OwCounterEvent(timestamp, 'B', counters[1]))
 
-        self.log.debug("%s: counters are %s", self, counters)
+        #self.log.debug("%s: counters are %s", self, counters)
 
     def on_alarm(self, timestamp):
         # Normal DS2423 does not have alarm, but custom
