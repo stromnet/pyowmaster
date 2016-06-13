@@ -376,7 +376,7 @@ class DeviceFactory(object):
 
         try:
             dev.config(self.config)
-        except OwnetError as e:
+        except (ProtocolError, OwnetError, ConnError) as e:
             self.log.warn("Failed to configure %s, OW failure: %s",
                     dev_id, e)
 
