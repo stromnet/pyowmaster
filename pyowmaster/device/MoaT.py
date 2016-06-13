@@ -158,6 +158,8 @@ class MoaT(OwDevice):
             else:
                 ch.init()
 
+        self.ignore_next_silent_alarm = True
+
     def read_combined(self):
         """Read every channel types 'all'  property to get all channel values in one shot
         Returns a dict with type => array of values"""
@@ -182,7 +184,15 @@ class MoaT(OwDevice):
         self.log.debug("%s: Device alarmed", self)
         # Find out which alarm sources we got
         sources = self.ow_read_str('alarm/sources', uncached=True)
+
+        ignore_silent_alarm = self.ignore_next_silent_alarm
+        self.ignore_next_silent_alarm = False
         if len(sources) == 0:
+            if ignore_silent_alarm:
+                # We just did a read, and might be given a spurous alarm.
+                # If so, dont log it.
+                return
+
             self.log.warn("%s: Device alarmed, but empty sources?", self)
             return
 
@@ -560,8 +570,11 @@ class MoaTADCChannel(MoaTChannel):
             # we are
             s = self.get_state_entry(value)
             if self.current_state != s[0]:
-                self.log.warn("%s %s: Expected to be in state %s, was in state %s (value %d)",
+                # This may be valid, if we happened to scan at the same time an alarm
+                # is trigged. However, the alarm has now been reset.
+                self.log.debug("%s %s: Expected to be in state %s, was in state %s (value %d)",
                     self.device, self.name, self.current_state, s[0], value)
+                self.device.ignore_next_silent_alarm = True
                 self.set_state(timestamp, s, False)
 
     def on_alarm(self, timestamp, adc_threshold_crossed):
@@ -581,15 +594,16 @@ class MoaTADCChannel(MoaTChannel):
                 # No change, but we DID get an alarm. Too fast for our polling?
                 # Find out which state we may have gone to by looking at adc_threshold_crossed
                 # which is + or -
-                new_state_ent = self.guess_state_entry(adc_threshold_crossed)
-                if new_state_ent is None:
-                    self.log.warn("%s %s: got alarm on value %d, does not match any configured state, and current state does not allow guessing. Ignoring",
-                            self.device, self.name, self.value)
+                guess_state_ent = self.guess_state_entry(adc_threshold_crossed)
+                if guess_state_ent is None:
+                    self.log.warn("%s %s: got %s alarm on value %d (%s), current state does not allow guessing. Ignoring",
+                            self.device, self.name, adc_threshold_crossed, self.value, new_state_ent[0])
                     return
 
-                self.log.debug("%s %s: got %s alarm on value %d within current threshold, guessing state %s",
+                self.log.debug("%s %s: got %s alarm on value %d (%s), guessing target state was %s",
                         self.device, self.name, adc_threshold_crossed, self.value,
-                        new_state_ent[0])
+                        new_state_ent[0], guess_state_ent[0])
+                new_state_ent = guess_state_ent
             else:
                 self.log.debug("%s %s: got %s alarm on value %d, matches new state %s",
                         self.device, self.name, adc_threshold_crossed, self.value,
