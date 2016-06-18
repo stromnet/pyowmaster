@@ -103,7 +103,12 @@ class OwEventDispatcher(OwEventHandler):
     def shutdown(self):
         """Signals all registered handlers to shut down"""
         for h in self.handlers:
-            h.shutdown()
+            try:
+                self.log.debug("Shutting down %s", h)
+                h.shutdown()
+                self.log.debug("Successful shutdown of %s", h)
+            except Exception as e:
+                self.log.error("Unhandled exception while shutting down %s" % h, e)
 
 
 class ThreadedOwEventHandler(OwEventHandler):
