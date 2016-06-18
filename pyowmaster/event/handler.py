@@ -107,8 +107,8 @@ class OwEventDispatcher(OwEventHandler):
                 self.log.debug("Shutting down %s", h)
                 h.shutdown()
                 self.log.debug("Successful shutdown of %s", h)
-            except Exception as e:
-                self.log.error("Unhandled exception while shutting down %s" % h, e)
+            except:
+                self.log.error("Unhandled exception while shutting down %s", h, exc_info=True)
 
 
 class ThreadedOwEventHandler(OwEventHandler):
