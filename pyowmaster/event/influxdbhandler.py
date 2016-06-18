@@ -360,8 +360,29 @@ class InfluxDBEventHandler(OwEventHandler):
                 self.log.warn("InfluxDB server error (%d): %s", r.status_code, r.text)
                 return False
             else:
-                # Probably cant do retry
-                self.log.error("InfluxDB client error (%d): %s", r.status_code, r.text)
+                if r.status_code == 400:
+                    # Bad request / input data
+                    faulty = len(lines)
+                    if faulty > 1:
+                        # Send each line by itself, possibly allows us to identify which
+                        # line is faulty (and at least send the valid ones)
+                        self.log.info("InfluxDB client error (%d: %s). Sending line by line", r.status_code, r.text)
+                        for line in lines:
+                            if self.send([line]):
+                                # One less which failed..
+                                faulty -=1
+
+                        if faulty > 0:
+                            self.log.warn("Discarding %d lines of faulty data", faulty)
+
+                        return True
+                    else:
+                        # Single line which we can report as invalid
+                        self.log.error("InfluxDB client error (%d) for line '%s': %s",
+                                r.status_code, lines[0], r.text)
+                        return False
+
+                # Something else
                 return False
 
         except requests.exceptions.RequestException, e:
