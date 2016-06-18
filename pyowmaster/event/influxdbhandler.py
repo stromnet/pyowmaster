@@ -19,6 +19,8 @@ import collections
 import Queue
 import time
 import threading
+from six import binary_type, text_type, integer_types, PY2
+
 
 import requests, requests.exceptions
 
@@ -28,6 +30,53 @@ from pyowmaster.event.events import *
 def create(inventory):
     tsdb = InfluxDBEventHandler()
     return tsdb
+
+# Escape functions borrowed from officla influxdb line_protocol.py
+def _escape_tag(tag):
+    tag = _get_unicode(tag, force=True)
+    return tag.replace(
+        "\\", "\\\\"
+    ).replace(
+        " ", "\\ "
+    ).replace(
+        ",", "\\,"
+    ).replace(
+        "=", "\\="
+    )
+
+
+def _escape_value(value):
+    value = _get_unicode(value)
+    if isinstance(value, text_type) and value != '':
+        return "\"{0}\"".format(
+            value.replace(
+                "\"", "\\\""
+            ).replace(
+                "\n", "\\n"
+            )
+        )
+    elif isinstance(value, integer_types) and not isinstance(value, bool):
+        return str(value) + 'i'
+    else:
+        return str(value)
+
+
+def _get_unicode(data, force=False):
+    """
+    Try to return a text aka unicode object from the given data.
+    """
+    if isinstance(data, binary_type):
+        return data.decode('utf-8')
+    elif data is None:
+        return ''
+    elif force:
+        if PY2:
+            return unicode(data)
+        else:
+            return str(data)
+    else:
+        return data
+
 
 class InfluxDBEventHandler(OwEventHandler):
     """A EventHandler which sends all numeric events into InfluxDb
@@ -125,22 +174,20 @@ class InfluxDBEventHandler(OwEventHandler):
         measurement_type = 'reading'
         field_name = "value"
         if isinstance(event, OwTemperatureEvent):
-            valuefmt = "%.2f"
             type_value = "temperature"
         elif isinstance(event, OwCounterEvent):
-            valuefmt = "%d"
             type_value = "counter"
         elif isinstance(event, OwAdcEvent):
-            valuefmt = "%d"
             type_value = "gauge"
         elif isinstance(event, OwStatisticsEvent):
-            valuefmt = "%d"
             measurement_type = 'stats'
             type_value = "%s" % event.category
         else:
             return
 
-        tags = {}
+        tags = {
+                'type': type_value
+            }
 
         if event.device_id and event.device_id.id:
             tags[self.sensor_key] = event.device_id.id
@@ -159,14 +206,19 @@ class InfluxDBEventHandler(OwEventHandler):
 
         tags_str = ''
         for k in sorted(tags.keys()):
-            tags_str += ',%s=%s' % (k, tags[k])
+            tags_str += ',%s=%s' % (_escape_tag(k), _escape_tag(tags[k]))
+
+
+        # InfluxDB only allows one type of data for a specific field
+        # As we use 'value' for all, we must use float.
+        value = float(event.value)
 
         # Line protocol is measurement,<tags> <values> <timestamp>
-        line = ('%s%s %s='+valuefmt+' %d') % (
+        line = ('%s%s %s=%s %d') % (
             self.measurement_name[measurement_type],
             tags_str,
             field_name,
-            event.value,
+            _escape_value(value),
             event.timestamp)
 
         # Put onto queue. If full, drop oldest item
