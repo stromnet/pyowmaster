@@ -78,6 +78,7 @@ class MoaT(OwDevice):
     def __init__(self, ow, owid):
         super(MoaT, self).__init__(ow, owid)
         self.device_name = None
+        self.ignore_next_silent_alarm = False
 
     def config(self, config):
         super(MoaT, self).config(config)
