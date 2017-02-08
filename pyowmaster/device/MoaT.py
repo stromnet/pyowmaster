@@ -86,6 +86,15 @@ class MoaT(OwDevice):
         # Keep config for future re-configuration
         self.dev_cfg = config
 
+        # Pre-init state
+        self.channels = None
+
+        self._init_device()
+
+    def _init_device(self):
+        """Setup device first time.
+        If not online, we may not be able to init properly. Called both from initital config()
+        and from first on_seen in case not inited."""
         # Clear reboot status; we're re-initing anyway now
         try:
             self.log.debug("%s: Clearing reboot reason indicator; initial configuration", self)
@@ -95,7 +104,7 @@ class MoaT(OwDevice):
             pass
 
         self.channels = {}
-        self.init_channels(config)
+        self.init_channels(self.dev_cfg)
 
     def reboot_detected(self, reason):
         """Call when reboot is detected, triggers re-init of all channels"""
@@ -173,6 +182,9 @@ class MoaT(OwDevice):
 
 
     def on_seen(self, timestamp):
+        if not self.channels:
+            self._init_device()
+
         values_by_type = self.read_combined()
 
         for ch in self.channels.values():
