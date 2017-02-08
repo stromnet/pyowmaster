@@ -370,7 +370,7 @@ class MoaTPortChannel(MoaTChannel, OwPIOBase):
             if has_changed:
                 event_type = self.port_value_to_event_type(self.value)
 
-        elif ch.is_input_momentary:
+        elif self.is_input_momentary:
             # Alarm => assume trigged
             event_type = OwPIOEvent.TRIGGED
         else:
