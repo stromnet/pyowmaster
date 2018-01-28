@@ -138,6 +138,13 @@ class InfluxDBEventHandler(OwEventHandler):
         while self.server.endswith('/'):
             self.server = self.server[0:-1]
 
+        username = module_config.get('username', None)
+        password = module_config.get('password', None)
+        if username is not None and password is not None:
+            self.session.auth = (username, password)
+        else:
+            self.session.auth = None
+
         self.database = module_config.get('database', 'owfs')
         self.retention_policy = module_config.get('retention_policy', None)
 
