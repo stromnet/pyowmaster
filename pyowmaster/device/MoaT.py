@@ -229,6 +229,14 @@ class MoaT(OwDevice):
             # Read values of all the alarmed ones
             self.log.debug("Alarm on %s: %s", port_type, ports)
 
+            # If Ch type supports read_all, read all at once in order
+            # to ensure that we read multiple triggs ASAP
+            all_values = None
+            if port_type != 'status':
+                clsref = CH_TYPES[port_type]
+                if hasattr(clsref, 'read_all'):
+                    all_values = CH_TYPES[port_type].read_all(self)
+
             for port_no in ports:
                 # Special case for ADC, where it is prefixed with +/-
                 adc_thresh = None
@@ -248,8 +256,11 @@ class MoaT(OwDevice):
                     self.log.debug("Ignoring unknown channel %s", ch_name)
                     continue
 
-                # No reading of common pin state here.. Could be usable for port though?
-                ch.on_alarm(timestamp, adc_thresh)
+                value_from_read_all = None
+                if all_values is not None:
+                    value_from_read_all = all_values[ch.ch_num - 1]
+
+                ch.on_alarm(timestamp, value_from_read_all, adc_thresh)
 
     def on_status_alarm(self, timestamp, status_name):
         val = self.ow_read_str('status/%s' % status_name, uncached=True)
@@ -324,7 +335,7 @@ class MoaTChannel(OwChannel):
         """
         pass
 
-    def on_alarm(self, timestamp, extra=None):
+    def on_alarm(self, timestamp, value_from_read_all=None, extra=None):
         pass
 
 
@@ -359,9 +370,12 @@ class MoaTPortChannel(MoaTChannel, OwPIOBase):
         event_type = self.port_value_to_event_type(self.value)
         self.device.emit_event(OwPIOEvent(time.time(), self.name, event_type, True))
 
-    def on_alarm(self, timestamp, extra=None):
+    def on_alarm(self, timestamp, value_from_read_all, extra=None):
         prev_value = self.value
-        self.value = self.read()
+        self.value = value_from_read_all
+
+        # Must trigger a read to clear alarm state, but we use the value from the combined read
+        self.read()
 
         has_changed = self.value != prev_value
 
@@ -421,8 +435,9 @@ class MoaTCountChannel(MoaTChannel):
         self.log.debug("%s %s: Value: %d", self.device, self.name, value)
         self.device.emit_event(OwCounterEvent(timestamp, self.name, value))
 
-    def on_alarm(self, timestamp, extra=None):
+    def on_alarm(self, timestamp, value_from_read_all, extra=None):
         """Alarms on count channels are ignored for now"""
+        # Must trigger a read to clear alarm state
         self.read()
 
     def read(self):
@@ -550,14 +565,17 @@ class MoaTADCChannel(MoaTChannel):
         device.log.debug("%s: read all adcs: %s", device, values)
         return values
 
-    def read(self):
+    def read(self, value_from_read_all=None):
         """Read and return (value, slow_threshold, high_threshold)"""
         (value, low_threshold, high_threshold) = self.device.ow_read_int_list(self.name, uncached=True)
+        used_value = value
         if not self.disabled:
-            self.log.debug("%s %s: Value: %d (low %d, high %d)",
-                    self.device, self.name, value, low_threshold, high_threshold)
+            if value_from_read_all is not None:
+                used_value = value_from_read_all
+            self.log.debug("%s %s: Value: %d (curr=%d, low %d, high %d)",
+                    self.device, self.name, used_value, value, low_threshold, high_threshold)
 
-        return (value, low_threshold, high_threshold)
+        return (used_value, low_threshold, high_threshold)
 
     def init(self, value):
         """Channel initialization; ensure the alarm config is proper"""
@@ -590,8 +608,9 @@ class MoaTADCChannel(MoaTChannel):
                 self.device.ignore_next_silent_alarm = True
                 self.set_state(timestamp, s, False)
 
-    def on_alarm(self, timestamp, adc_threshold_crossed):
-        (self.value, self.low_threshold, self.high_threshold) = self.read()
+    def on_alarm(self, timestamp, value_from_read_all, adc_threshold_crossed):
+        # We want to read latest thresholds, but we will use value from read_all
+        (self.value, self.low_threshold, self.high_threshold) = self.read(value_from_read_all)
 
         new_state_ent = None
         if hasattr(self, 'states'):
