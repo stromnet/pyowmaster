@@ -339,7 +339,7 @@ class MoaTChannel(OwChannel):
         pass
 
 
-class MoaTPortChannel(MoaTChannel, OwPIOBase):
+class MoaTPortChannel(OwPIOBase, MoaTChannel):
     """A OwChannel for MoaT Port channels, combined with OwPIOBase for configuration"""
     def __init__(self, ch_type, ch_num, config, device):
         super(MoaTPortChannel, self).__init__(ch_type, ch_num, config, device)
@@ -356,9 +356,9 @@ class MoaTPortChannel(MoaTChannel, OwPIOBase):
 
     def port_value_to_event_type(self, value):
         if value == self.is_active_high:
-            event_type = OwPIOEvent.ON
+            return OwPIOEvent.ON
         else:
-            event_type = OwPIOEvent.OFF
+            return OwPIOEvent.OFF
 
     def init(self, value):
         """Initialize the port. Ports are always read grouped, so it always has an initial value"""
@@ -381,16 +381,16 @@ class MoaTPortChannel(MoaTChannel, OwPIOBase):
 
         if self.is_output or \
             (self.is_input and self.is_input_toggle):
-            if has_changed:
-                event_type = self.port_value_to_event_type(self.value)
+            event_type = self.port_value_to_event_type(self.value)
 
         elif self.is_input_momentary:
             # Alarm => assume trigged
+            has_changed = True
             event_type = OwPIOEvent.TRIGGED
         else:
             raise RuntimeError("Invalid input mode %d for channel %s" % (self.mode, self))
 
-        if event_type:
+        if has_changed:
             self.device.emit_event(OwPIOEvent(timestamp, self.name, event_type, False))
         else:
             self.log.debug("%s %s: alarm ignored", self.device, self.name)
