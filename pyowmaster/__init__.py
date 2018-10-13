@@ -284,11 +284,22 @@ class OwMaster(object):
 
         simultaneous = {}
         for dev in device_list:
+            # When processing alarms/seen, pause the event queue so that any
+            # events are executed after the full alarm have been processed.
+            # This ensures all events will see the same picture, in case they have
+            # conditions on other inputs which may be triggered at the same time.
+            def queue_pauser(method, *args):
+                self.event_dispatcher.pause()
+                try:
+                    method(*args)
+                finally:
+                    self.event_dispatcher.resume()
+
             if alarm_mode:
                 # Schedule Alarm handler immediately
-                self.queue_high_prio(0, dev.on_alarm, [timestamp])
+                self.queue_high_prio(0, queue_pauser, [dev.on_alarm, timestamp])
             else:
-                self.queue_low_prio(0, dev.on_seen, [timestamp])
+                self.queue_low_prio(0, queue_pauser, [dev.on_seen, timestamp])
                 if dev.simultaneous != None:
                     # Device supports simultaneous handling, enqueue it
                     if not simultaneous.has_key(dev.simultaneous):
