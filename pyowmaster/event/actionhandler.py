@@ -17,15 +17,21 @@
 #
 import collections, logging
 import importlib, inspect
+import sys
+import time
+
 import jinja2
 
 from pyowmaster.event.handler import ThreadedOwEventHandler
 from pyowmaster.event.events import *
-from pyowmaster.event.action import EventAction, parse_conditional
+from pyowmaster.event.action import EventAction
+from pyowmaster.event.action.conditionals import parse_conditional, init_jinja2
 from pyowmaster.exception import *
+
 
 def create(inventory):
     return ActionEventHandler(inventory)
+
 
 class ActionEventHandler(ThreadedOwEventHandler):
     """A EventHandler which reacts to events and executes actions based on these"""
@@ -35,7 +41,7 @@ class ActionEventHandler(ThreadedOwEventHandler):
         self.action_factory = ActionFactory(inventory)
         self.inventory = inventory
         self.event_handlers_by_dev = {}
-        self.jinja_env = jinja2.Environment(undefined=jinja2.StrictUndefined)
+        self.jinja_env = init_jinja2()
         self.start()
 
     def config(self, module_config, root_config):
@@ -58,7 +64,7 @@ class ActionEventHandler(ThreadedOwEventHandler):
             if not hasattr(dev, 'channels'):
                 continue
 
-            by_ch  = None
+            by_ch = None
             channel_list = dev.channels
 
             # Some devices has a dict with name->channel
@@ -75,7 +81,7 @@ class ActionEventHandler(ThreadedOwEventHandler):
                     event_type_key = event_type
                     if event_type == 'on': event_type_key = True
                     if event_type == 'off': event_type_key = False
-                    if not event_type_key in ch.config:
+                    if event_type_key not in ch.config:
                         continue
 
                     # Ch configuration can have a sub-entry for each event type
@@ -103,13 +109,23 @@ class ActionEventHandler(ThreadedOwEventHandler):
                     if not by_type:
                         by_type = by_ch[ch.name] = {}
 
-                    for_type = by_type[event_type] = {}
+                    # For each configured event, this "event config" holds details of it
+                    when_condition = action_cfg_for_type.get('when', None)
+                    event_actions = []
+                    by_type[event_type] = dict(
+                        # If a conditional was set for the event (not individual actions)
+                        when=when_condition,
+                        conditional=parse_conditional(when_condition, self.jinja_env),
+                        # When the event last occurred
+                        last_occurred=None,
+                        # When the event last was executed (i.e. not stopped by shared conditional)
+                        # Note that each individual event may still have been blocked.
+                        last_ran=None,
+                        # Which actions to execute
+                        actions=event_actions
+                    )
 
-                    # Shared conditional? Parsed to a default True if not set
-                    for_type['when'] = action_cfg_for_type.get('when', None)
-                    for_type['conditional'] = parse_conditional(for_type['when'], self.jinja_env)
-
-                    event_actions = for_type['actions'] = []
+                    # Try to load each configured action
                     for action_cfg in action_cfg_for_type['actions']:
                         try:
                             a = self.action_factory.create(dev, ch, event_type, action_cfg)
@@ -140,37 +156,69 @@ class ActionEventHandler(ThreadedOwEventHandler):
             by_ch = self.event_handlers_by_dev[event.device_id.id]
             by_type = by_ch[event.channel]
             event_type = event.value.lower()
-            for_type = by_type[event_type]
-            actions = for_type['actions']
-            conditional = for_type['conditional']
+            event_cfg = by_type[event_type]
         except KeyError:
             #self.log.debug("No handler found for event %s", event)
             return
 
-        # Create a Jinja context in which we can address devices either by
-        # alias (as a variable name), or by ID via a devices['12.2322id'] map.
-        # Direct access by ID will not be possible, since jinja variable names does not
+        actions = event_cfg['actions']
+        conditional = event_cfg['conditional']
+
+        # Create a Jinja context which is used for evaluating conditionals.
+        # It allows addressing devices either by alias (as a variable name), or by ID via a
+        # devices['12.2322id'] map.
+        # Direct access by ID is not possible, since jinja variable names does not
         # allow leading digit.
         devices = {}
         devices.update(self.inventory.devices)
-        ctx = dict(devices=devices)
+        ctx = dict(
+            devices=devices,
+            event=event,
+            # Make a bunch of timing counters available for the conditional to decide on
+            # Each of these counts in seconds (float).
+            since_last_event=None,      # when this event last occurred
+            since_last_run=None,        # when this event last resulted in actions executed (no when: condition blocked)
+            since_last_action_run=None  # same as above, but for each individual action.
+            # If no valid value found, they are None. this means user must explicitly
+            # handle None values if applicable, for example:
+            # 'since_last_event|isnone(123) > 2' where isnone is a custom Jinja2 filter we have.
+        )
 
+        # Add any aliases with direct access. Aliases which are not valid names will just not be
+        # reachable.
         for alias, dev_id in self.inventory.aliases.iteritems():
             ctx[alias] = devices[dev_id]
 
+        if event_cfg['last_occurred'] is not None:
+            ctx['since_last_event'] = event.timestamp - event_cfg['last_occurred']
+
+        if event_cfg['last_ran'] is not None:
+            ctx['since_last_run'] = time.time() - event_cfg['last_ran']
+
+        event_cfg['last_occurred'] = event.timestamp
+
         # Evaluate shared conditional first
         if not conditional(ctx):
-            self.log.debug("Not executing actions for %s ch %s '%s' event, conditional '%s' rejected", event.device_id.id, event.channel, event_type, for_type['when'])
+            self.log.debug("Not executing actions for %s ch %s '%s' event, conditional '%s' rejected", event.device_id.id, event.channel, event_type, event_cfg['when'])
             return
+
+        event_cfg['last_ran'] = time.time()
 
         for action in actions:
             try:
+                # Action-specific timer
+                if action.last_ran is not None:
+                    ctx['since_last_action_run'] = time.time() - action.last_ran
+                elif 'since_last_action_run' in ctx:
+                    ctx['since_last_action_run'] = None
+
                 if action.conditional_expression(ctx):
                     action.handle_event(event)
                 else:
                     self.log.debug("Not executing %s, conditional '%s' rejected", action, action.when)
             except:
                 self.log.exception("Failed to execute action %s", action)
+
 
 class ActionFactory(object):
     """Factory to create Action instances based on a action_config entry"""
@@ -264,7 +312,7 @@ class ActionFactory(object):
     def register(self, name, class_ref):
         if self.action_modules.get(name) == class_ref:
             return
-        assert self.action_modules.get(name) == None, "Action %s already registered with %s" % (name, class_ref)
+        assert self.action_modules.get(name) is None, "Action %s already registered with %s" % (name, class_ref)
         self.action_modules[name] = class_ref
 
 

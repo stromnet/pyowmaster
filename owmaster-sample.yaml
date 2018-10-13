@@ -134,8 +134,10 @@ devices:
         - setpio.on.include_reset: 29.211144200000.5
       off:
         # This conditional applies to all actions for this event, i.e. neither of the ones below
-        # will be executed if the condition is not fulfilled
-        when: multi_io[4].value == 1
+        # will be executed if the condition is not fulfilled.
+        # This also looks at the since_last_run timer; only run these actions if it was more
+        # than 2s since last run (or if it was never executed before)
+        when: multi_io[4].value == 1 and since_last_run|ifnone(1000) > 2
         actions:
           # When input changes (or is restarted) to off, send mail and turn off an output.
           - shell.include_reset: mail -s "Channel 6 is off" example@example.com

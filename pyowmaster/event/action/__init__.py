@@ -15,18 +15,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-import logging, re
-from pyowmaster.exception import *
-import pyowmaster.owidutil
+import logging
+import time
 
-def parse_conditional(when, jinja_env):
-    if when is not None:
-        if isinstance(when, bool):
-            return lambda _: when
-        else:
-            return jinja_env.compile_expression(when)
-    else:
-        return lambda _: True
+from pyowmaster.event.action.conditionals import parse_conditional
+from pyowmaster.exception import *
+
 
 class EventAction(object):
     """Base class to describe a parsed action which is to be executed when events on a specific device/channel/type occurs"""
@@ -34,6 +28,7 @@ class EventAction(object):
         """This signature represents how the ActionFactory tries to init each action"""
         self.inventory = inventory
         self.log = logging.getLogger(type(self).__name__)
+        self.last_ran = None
 
         # Check if we should react to is_reset values (default true)
         self.include_reset_events = action_config.get('include_reset', False)
@@ -67,5 +62,6 @@ class EventAction(object):
             return
 
         self.log.debug("%s: Executing action", self)
+        self.last_ran = time.time()
         self.run(event)
 
