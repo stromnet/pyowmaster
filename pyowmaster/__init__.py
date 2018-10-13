@@ -554,7 +554,7 @@ class DeviceInventory(object):
                     raise Exception("Alias %s pointed to device %s which was not found" % (alias_or_id, dev_id))
 
         # Should have a device now.
-        ch = dev.get_channel(ch_name)
+        ch = dev[ch_name]
         return (dev, ch)
 
     def list(self, skip_list=None):

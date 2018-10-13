@@ -73,7 +73,7 @@ class OwDevice(Device):
                 config.get(('devices', (self.id, self.type), 'max_dir_time'), 2)
             ]
 
-    def get_channel(self, name_or_num):
+    def __getitem__(self, name_or_num):
         """If device supports channels, return channel identified by name_or_num.
         If device does not have channel support, return None. If channel not found, return False
         """
@@ -94,7 +94,6 @@ class OwDevice(Device):
                 return c
 
         return False
-
 
     def ow_read(self, sub_path, uncached=False):
         if not uncached:
