@@ -382,6 +382,7 @@ class MoaTPortChannel(OwPIOBase, MoaTChannel):
         if self.is_output or \
             (self.is_input and self.is_input_toggle):
             event_type = self.port_value_to_event_type(self.value)
+            self.state = event_type
 
         elif self.is_input_momentary:
             # Alarm => assume trigged
@@ -430,15 +431,15 @@ class MoaTCountChannel(MoaTChannel):
         if self.disabled:
             return
 
-        value = self.read()
+        self.value = self.read()
 
-        self.log.debug("%s %s: Value: %d", self.device, self.name, value)
-        self.device.emit_event(OwCounterEvent(timestamp, self.name, value))
+        self.log.debug("%s %s: Value: %d", self.device, self.name, self.value)
+        self.device.emit_event(OwCounterEvent(timestamp, self.name, self.value))
 
     def on_alarm(self, timestamp, value_from_read_all, extra=None):
         """Alarms on count channels are ignored for now"""
         # Must trigger a read to clear alarm state
-        self.read()
+        self.value = self.read()
 
     def read(self):
         """Read value"""
@@ -466,7 +467,7 @@ class MoaTADCChannel(MoaTChannel):
         # and below that the channel name, or fallback channel type (adc), and key 'states'
         states = config.get(('devices', (self.device.id, self.device.type), ('adc', self.name), 'states'), None)
         if states:
-            self.current_state = None
+            self.state = None
             if isinstance(states, str):
                 # If configured as string, look for a common reference.
                 # These can be placed under devices/MoaT/adc/state_template/<name>
@@ -534,7 +535,7 @@ class MoaTADCChannel(MoaTChannel):
         guessing on to get out from. Instead, the alarm will be ignored."""
         prev = None
         for n in range(len(self.states)):
-            if self.states[n][0] != self.current_state:
+            if self.states[n][0] != self.state:
                 continue
 
             if self.states[n][3] == False:
@@ -600,11 +601,11 @@ class MoaTADCChannel(MoaTChannel):
             # For state mode, we do a check to ensure we are in the state we think
             # we are
             s = self.get_state_entry(value)
-            if self.current_state != s[0]:
+            if self.state != s[0]:
                 # This may be valid, if we happened to scan at the same time an alarm
                 # is trigged. However, the alarm has now been reset.
                 self.log.debug("%s %s: Expected to be in state %s, was in state %s (value %d)",
-                    self.device, self.name, self.current_state, s[0], value)
+                    self.device, self.name, self.state, s[0], value)
                 self.device.ignore_next_silent_alarm = True
                 self.set_state(timestamp, s, False)
 
@@ -622,7 +623,7 @@ class MoaTADCChannel(MoaTChannel):
                 self.set_thresholds(ADC_MAX, ADC_MIN)
                 return
 
-            if new_state_ent[0] == self.current_state:
+            if new_state_ent[0] == self.state:
                 # No change, but we DID get an alarm. Too fast for our polling?
                 # Find out which state we may have gone to by looking at adc_threshold_crossed
                 # which is + or -
@@ -651,10 +652,10 @@ class MoaTADCChannel(MoaTChannel):
     def set_state(self, timestamp, state_ent, is_reset):
         """Set the current state & emit an event announcing the change, then reconfigure thresholds"""
         self.log.debug("%s %s: now in state %s (prev %s)", self.device, self,
-                state_ent[0], self.current_state)
-        self.current_state = state_ent[0]
+                state_ent[0], self.state)
+        self.state = state_ent[0]
 
-        ev = OwPIOEvent(timestamp, self.name, self.current_state, is_reset)
+        ev = OwPIOEvent(timestamp, self.name, self.state, is_reset)
         self.device.emit_event(ev)
 
         # Calculate automatic thresholds and set them

@@ -58,6 +58,10 @@ class OwPIOBase(object):
         # Todo: add "debounce" possibility, i.e. block input
         # for x seconds
 
+        # Updated in OwPIODevice.on_alarm, or similar
+        self.value = None
+        self.state = None
+
     def parse_pio_mode(self, mode):
         cfg = 0
         if mode.find('output') != -1:
@@ -144,7 +148,7 @@ class OwPIOChannel(OwPIOBase, OwChannel):
         return (value & (1 << self.num)) != 0
 
     def __str__(self):
-        return "%s %s (alias %s), mode=%s" % (self.__class__.__name__, self.name, self.alias, self.modestr())
+        return "%s %s (alias %s), mode=%s [%s,%s]" % (self.__class__.__name__, self.name, self.alias, self.modestr(), self.value, self.state)
 
 class OwPIODevice(OwDevice):
     """Abstract base class for use with DS2406, DS2408 and similar PIO devices.
@@ -230,10 +234,12 @@ class OwPIODevice(OwDevice):
         for all Toggle inputs, and outputs, to let global system know it may have changed"""
         timestamp = time.time()
         for ch in self.channels:
+            ch_sensed = ch.is_set(sensed)
+            ch.value = ch_sensed
+
             if not ch.is_input_toggle and not ch.is_output:
                 continue
 
-            ch_sensed = ch.is_set(sensed)
             ch_active_level = ch.is_active_high
 
             if ch_sensed == ch_active_level:
@@ -245,6 +251,8 @@ class OwPIODevice(OwDevice):
             self.log.debug("%s: ch %s event: %s", \
                 self, ch.name, event_type)
             self.emit_event(event)
+
+            ch.state = event_type
 
     def on_alarm(self, timestamp):
         if not self.alarm_supported:
@@ -303,6 +311,8 @@ class OwPIODevice(OwDevice):
             ch_last_sensed = ch.is_set(last_sensed) if last_sensed != None else None
             ch_has_changed = ch_last_sensed != ch_sensed if ch_last_sensed != None else None
 
+            ch.value = ch_sensed
+
             event_type = None
             if is_output or \
                 (is_input and ch.is_input_toggle):
@@ -311,6 +321,8 @@ class OwPIODevice(OwDevice):
                         event_type = OwPIOEvent.ON
                     else:
                         event_type = OwPIOEvent.OFF
+
+                ch.state = event_type
 
             elif ch.is_input_momentary:
                 # Two scenarios we must handle (active_level=1):
