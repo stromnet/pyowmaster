@@ -22,8 +22,10 @@ import rrdtool
 import os, time
 from os.path import abspath, exists, isdir
 
+
 def create(inventory):
     return RRDOwEventHandler()
+
 
 class RRDOwEventHandler(ThreadedOwEventHandler):
     def __init__(self, max_queue_size=0):
@@ -87,20 +89,20 @@ class RRDOwEventHandler(ThreadedOwEventHandler):
         """Create a new RRD file. TODO not hardcode..."""
         self.log.info("Creating %s (%s)", rrdfile, dstype)
         rrdtool.create(rrdfile,
-                '-s', '60', \
-                'DS:value:%s:120:U:U' % dstype, \
-                'RRA:AVERAGE:0.5:1:1440', \
-                'RRA:AVERAGE:0.5:5:2016', \
-                'RRA:AVERAGE:0.5:15:2976', \
-                'RRA:AVERAGE:0.5:60:4464', \
-                'RRA:AVERAGE:0.5:360:1460', \
-                'RRA:MIN:0.5:1:1440', \
-                'RRA:MIN:0.5:5:2016', \
-                'RRA:MIN:0.5:15:2976', \
-                'RRA:MIN:0.5:60:4464', \
-                'RRA:MIN:0.5:360:1460', \
-                'RRA:MAX:0.5:1:1440', \
-                'RRA:MAX:0.5:5:2016', \
-                'RRA:MAX:0.5:15:2976', \
-                'RRA:MAX:0.5:60:4464')
+                       '-s', '60',
+                       'DS:value:%s:120:U:U' % dstype,
+                       'RRA:AVERAGE:0.5:1:1440',
+                       'RRA:AVERAGE:0.5:5:2016',
+                       'RRA:AVERAGE:0.5:15:2976',
+                       'RRA:AVERAGE:0.5:60:4464',
+                       'RRA:AVERAGE:0.5:360:1460',
+                       'RRA:MIN:0.5:1:1440',
+                       'RRA:MIN:0.5:5:2016',
+                       'RRA:MIN:0.5:15:2976',
+                       'RRA:MIN:0.5:60:4464',
+                       'RRA:MIN:0.5:360:1460',
+                       'RRA:MAX:0.5:1:1440',
+                       'RRA:MAX:0.5:5:2016',
+                       'RRA:MAX:0.5:15:2976',
+                       'RRA:MAX:0.5:60:4464')
 

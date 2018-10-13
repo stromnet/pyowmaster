@@ -16,6 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+
 class OwEventBase(object):
     """Base object for any events sent emitted from
     1-Wire devices as result of alarms or regular polling"""
@@ -28,6 +29,7 @@ class OwEventBase(object):
     def __str__(self):
         return "OwEvent[%d: %s, unknown]" % (self.timestamp, self.device_id)
 
+
 class OwCounterEvent(OwEventBase):
     """Describes an counter reading"""
     def __init__(self, timestamp, channel, value, is_reset=False):
@@ -37,6 +39,7 @@ class OwCounterEvent(OwEventBase):
 
     def __str__(self):
         return "OwCounterEvent[%d: %s, ch %s, %d]" % (self.timestamp, self.device_id, self.channel, self.value)
+
 
 class OwAdcEvent(OwEventBase):
     """Describes an ADC reading"""
@@ -48,6 +51,7 @@ class OwAdcEvent(OwEventBase):
     def __str__(self):
         return "OwAdcEvent[%d: %s, ch %s, %d]" % (self.timestamp, self.device_id, self.channel, self.value)
 
+
 class OwTemperatureEvent(OwEventBase):
     """Describes an temperature reading"""
     def __init__(self, timestamp, value, unit, is_reset=False):
@@ -57,6 +61,7 @@ class OwTemperatureEvent(OwEventBase):
 
     def __str__(self):
         return "OwTemperatureEvent[%d: %s, %.2f %s]" % (self.timestamp, self.device_id, self.value, self.unit)
+
 
 class OwStatisticsEvent(OwEventBase):
     CATEOGORY_ERROR = "error"
@@ -70,6 +75,7 @@ class OwStatisticsEvent(OwEventBase):
 
     def __str__(self):
         return "OwStatisticsEvent[%d: %s %s, %d]" % (self.timestamp, self.category, self.name, self.value)
+
 
 class OwPIOEvent(OwEventBase):
     """Describes an event which has occured on the specified OwDevice ID/channel.

@@ -16,11 +16,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+
 class OwMasterException(Exception):
     pass
 
+
 class ConfigurationError(OwMasterException):
     pass
+
 
 class InvalidChannelError(OwMasterException):
     pass

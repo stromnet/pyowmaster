@@ -20,9 +20,11 @@ from pyowmaster.event.events import *
 
 import socket
 
+
 def create(inventory):
     tsdb = OpenTSDBEventHandler()
     return tsdb
+
 
 class OpenTSDBEventHandler(ThreadedOwEventHandler):
     def __init__(self, max_queue_size=0):
@@ -35,7 +37,7 @@ class OpenTSDBEventHandler(ThreadedOwEventHandler):
         port = module_config.get('port', 4242)
 
         if self.address and \
-                (self.address[0] != host or \
+                (self.address[0] != host or
                  self.address[1] != port):
             self.cleanup()
 
@@ -90,7 +92,7 @@ class OpenTSDBEventHandler(ThreadedOwEventHandler):
             cmd += " %s=%s" % (self.channel_key, event.channel)
 
         if self.extra_tags:
-            cmd += " %s" % (self.extra_tags)
+            cmd += " %s" % self.extra_tags
 
         self.send(event, cmd)
 
@@ -122,4 +124,3 @@ class OpenTSDBEventHandler(ThreadedOwEventHandler):
             self.socket.shutdown(0)
             self.socket.close()
             self.socket = None
-

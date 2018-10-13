@@ -19,6 +19,7 @@ from pyowmaster.event.action import EventAction
 import subprocess
 import os
 
+
 class ShellAction(EventAction):
     """EventAction which executes an arbitrary shell command"""
     def __init__(self, inventory, dev, channel, event_type, method, action_config, single_value):
@@ -37,5 +38,5 @@ class ShellAction(EventAction):
         self.log.debug("Command output: %s", output)
 
     def __str__(self):
-        return "ShellAction[%s]" % (self.command)
+        return "ShellAction[%s]" % self.command
 

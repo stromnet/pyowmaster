@@ -65,4 +65,3 @@ class SetPioAction(EventAction):
 
     def __str__(self):
         return "SetPioAction[%s ch %s = %s]" % (self.tgt_dev.id, self.tgt_ch.name, self.tgt_method)
-

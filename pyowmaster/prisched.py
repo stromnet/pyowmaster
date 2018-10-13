@@ -34,7 +34,6 @@ Lots of code copied from base sched implementation. The main usage differences a
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-import logging
 import heapq
 import time
 from collections import namedtuple
@@ -187,7 +186,7 @@ class Queue(object):
                 return time
 
             if dispatched >= self.min_dispatch and \
-                (dispatched < self.max_dispatch or \
+                (dispatched < self.max_dispatch or
                  (not_later_than > 0 and self.timefunc() >= not_later_than)):
                 # We've executed our minimum amount of events,
                 # but are now not allowed to execute any more.
@@ -218,4 +217,3 @@ class Queue(object):
         # the actual order they would be retrieved.
         events = self._queue[:]
         return map(heapq.heappop, [events]*len(events))
-

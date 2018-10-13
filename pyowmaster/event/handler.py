@@ -16,7 +16,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 import logging
-import threading,Queue
+import threading, Queue
+
 
 class OwEventHandler(object):
     """Abstract basic event handler interface"""
@@ -41,14 +42,14 @@ class OwEventHandler(object):
         pass
 
     def shutdown(self):
-       """Signals the handler to shut down"""
-       pass
+        """Signals the handler to shut down"""
+        pass
 
 
 class OwEventDispatcher(OwEventHandler):
     """Dispatcher which forwards events on a set of event handlers"""
     def __init__(self):
-        self.log = logging.getLogger(type(self).__name__)
+        super(OwEventDispatcher, self).__init__()
         self.handlers = []
 
         self.paused = False

@@ -4,6 +4,7 @@ import unittest
 
 from pyowmaster.ecollections import *
 
+
 class ResolveKeysTest(unittest.TestCase):
     def testSingleKey(self):
         self.assertEquals(resolve_keys('a:b'), ['a:b'])

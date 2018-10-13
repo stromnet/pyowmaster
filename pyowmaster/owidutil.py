@@ -19,10 +19,11 @@
 import re
 
 RE_DEV_ID = re.compile('([A-F0-9][A-F0-9]\.?[A-F0-9]{12})')
-RE_DEV_ALIAS = re.compile('^([A-Za-z0-9\-\_]+)$')
+RE_DEV_ALIAS = re.compile('^([A-Za-z0-9\-_]+)$')
 
-RE_DEV_CHANNEL = re.compile('([A-F0-9][A-F0-9]\.?[A-F0-9]{12})\.([0-9A-Za-z\.]+)')
-RE_ALIAS_CHANNEL = re.compile('([A-Za-z0-9\-\_]+)\.?([0-9A-Za-z\.]+)')
+RE_DEV_CHANNEL = re.compile('([A-F0-9][A-F0-9]\.?[A-F0-9]{12})\.([0-9A-Za-z.]+)')
+RE_ALIAS_CHANNEL = re.compile('([A-Za-z0-9\-_]+)\.?([0-9A-Za-z.]+)')
+
 
 def owid_from_path(id_or_path):
     """Tries to interpret an 1-Wire ID from a string"""
@@ -35,11 +36,13 @@ def owid_from_path(id_or_path):
 
 def is_owid(id_or_path):
     """Checks if the given id (or path) is a proper 1-Wire ID"""
-    return RE_DEV_ID.match(id_or_path) != None
+    return RE_DEV_ID.match(id_or_path) is not None
+
 
 def is_valid_alias(alias):
     """Checks if the given string is a valid alias"""
-    return RE_DEV_ALIAS.match(alias) != None
+    return RE_DEV_ALIAS.match(alias) is not None
+
 
 def parse_target(tgt):
     """Tries to resolve a id + channel from a "target" string, where
@@ -65,6 +68,4 @@ def parse_target(tgt):
                     dev_id = m.group(1)
                     ch = m.group(2)
 
-    return (dev_id, ch)
-
-
+    return dev_id, ch

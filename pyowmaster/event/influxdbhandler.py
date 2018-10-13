@@ -21,17 +21,18 @@ import time
 import threading
 from six import binary_type, text_type, integer_types, PY2
 
-
 import requests, requests.exceptions
 
 from pyowmaster.event.handler import OwEventHandler
 from pyowmaster.event.events import *
 
+
 def create(inventory):
     tsdb = InfluxDBEventHandler()
     return tsdb
 
-# Escape functions borrowed from officla influxdb line_protocol.py
+
+# Escape functions borrowed from official influxdb line_protocol.py
 def _escape_tag(tag):
     tag = _get_unicode(tag, force=True)
     return tag.replace(
@@ -171,7 +172,7 @@ class InfluxDBEventHandler(OwEventHandler):
     def start(self):
         if not self.thread.isAlive():
             self.log.debug("InfluxDB handler configured for %s, database %s",
-                    self.server, self.database)
+                           self.server, self.database)
 
             self.queue = Queue.Queue(self.max_queue_size)
             self.thread.start()
@@ -205,7 +206,7 @@ class InfluxDBEventHandler(OwEventHandler):
             elif event.device_id.alias:
                 tags[self.alias_key] = event.device_id.alias
 
-        if hasattr(event, 'channel') and event.channel != None:
+        if hasattr(event, 'channel') and event.channel is not None:
             tags[self.channel_key] = event.channel
 
         if self.extra_tags:
@@ -215,13 +216,12 @@ class InfluxDBEventHandler(OwEventHandler):
         for k in sorted(tags.keys()):
             tags_str += ',%s=%s' % (_escape_tag(k), _escape_tag(tags[k]))
 
-
         # InfluxDB only allows one type of data for a specific field
         # As we use 'value' for all, we must use float.
         value = float(event.value)
 
         # Line protocol is measurement,<tags> <values> <timestamp>
-        line = ('%s%s %s=%s %d') % (
+        line = '%s%s %s=%s %d' % (
             self.measurement_name[measurement_type],
             tags_str,
             field_name,
@@ -257,7 +257,7 @@ class InfluxDBEventHandler(OwEventHandler):
                 # put them in one or more batches (controlled by max_batch_size,
                 # and then send all batches.
                 # In case of send issues, more batches may be backed up.
-                timeout_at = time.time()  + self.max_linger
+                timeout_at = time.time() + self.max_linger
                 # If exit has been signaled, there won't be any more to drain.
                 while not exit_requested:
                     block = True
@@ -298,7 +298,7 @@ class InfluxDBEventHandler(OwEventHandler):
                 if not batches.empty():
                     batch = batches.peek()
                     self.log.debug("Send batch with %d metrics (%d batches pending)",
-                        len(batch), len(batches) - 1)
+                                   len(batch), len(batches) - 1)
 
                     last_send_ok = False
                     if self.send(batch):
@@ -363,7 +363,7 @@ class InfluxDBEventHandler(OwEventHandler):
             if r.status_code == 204:
                 self.log.debug("InfluxDB accepted our data")
                 return True
-            elif r.status_code >= 500 and r.status_code < 600:
+            elif 500 <= r.status_code < 600:
                 self.log.warn("InfluxDB server error (%d): %s", r.status_code, r.text)
                 return False
             else:
@@ -377,7 +377,7 @@ class InfluxDBEventHandler(OwEventHandler):
                         for line in lines:
                             if self.send([line]):
                                 # One less which failed..
-                                faulty -=1
+                                faulty -= 1
 
                         if faulty > 0:
                             self.log.warn("Discarding %d lines of faulty data", faulty)
@@ -386,7 +386,7 @@ class InfluxDBEventHandler(OwEventHandler):
                     else:
                         # Single line which we can report as invalid
                         self.log.error("InfluxDB client error (%d) for line '%s': %s",
-                                r.status_code, lines[0], r.text)
+                                       r.status_code, lines[0], r.text)
                         return False
 
                 # Something else
@@ -395,7 +395,6 @@ class InfluxDBEventHandler(OwEventHandler):
         except requests.exceptions.RequestException, e:
             self.log.warn("Failed to talk to InfluxDB: %s", e)
             return False
-
 
 
 class LineBatches(object):
@@ -438,4 +437,3 @@ class LineBatches(object):
             del self.batches[0][:]
         else:
             self.batches.pop(0)
-

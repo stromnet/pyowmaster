@@ -17,10 +17,7 @@
 #
 import collections, logging
 import importlib, inspect
-import sys
 import time
-
-import jinja2
 
 from pyowmaster.event.handler import ThreadedOwEventHandler
 from pyowmaster.event.events import *

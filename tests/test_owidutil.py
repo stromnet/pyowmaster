@@ -4,6 +4,7 @@ import unittest
 
 from pyowmaster.owidutil import *
 
+
 class OwIdUtilTest(unittest.TestCase):
     def test_owid_from_path(self):
         self.assertEquals(owid_from_path('10.CB310B000800'), '10.CB310B000800')
