@@ -81,7 +81,6 @@ class MoaT(OwDevice):
     def __init__(self, ow, owid):
         super(MoaT, self).__init__(ow, owid)
         self.device_name = None
-        self.ignore_next_silent_alarm = False
 
     def config(self, config):
         super(MoaT, self).config(config)
@@ -171,8 +170,6 @@ class MoaT(OwDevice):
             else:
                 ch.init()
 
-        self.ignore_next_silent_alarm = True
-
     def read_combined(self):
         """Read every channel types 'all'  property to get all channel values in one shot
         Returns a dict with type => array of values"""
@@ -200,15 +197,8 @@ class MoaT(OwDevice):
         # Find out which alarm sources we got
         sources = self.ow_read_str('alarm/sources', uncached=True)
 
-        ignore_silent_alarm = self.ignore_next_silent_alarm
-        self.ignore_next_silent_alarm = False
         if len(sources) == 0:
-            if ignore_silent_alarm:
-                # We just did a read, and might be given a spurous alarm.
-                # If so, dont log it.
-                return
-
-            self.log.warn("%s: Device alarmed, but empty sources?", self)
+            self.log.debug("%s: Device alarmed, but empty sources", self)
             return
 
         self.log.debug("Handling sources '%s'", sources)
@@ -610,7 +600,6 @@ class MoaTADCChannel(MoaTChannel):
                 # is trigged. However, the alarm has now been reset.
                 self.log.debug("%s %s: Expected to be in state %s, was in state %s (value %d)",
                                self.device, self.name, self.state, s[0], value)
-                self.device.ignore_next_silent_alarm = True
                 self.set_state(timestamp, s, False)
 
     def on_alarm(self, timestamp, value_from_read_all=None, adc_threshold_crossed=None):
