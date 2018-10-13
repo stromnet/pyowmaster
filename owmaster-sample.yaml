@@ -98,7 +98,7 @@ devices:
 
   29.211144200000:
     # A DS2408, which has 8 PIOs
-    alias: multi-io
+    alias: multi_io
     # Most inputs are momentary
     ch.0:
       mode: input active high
@@ -121,15 +121,25 @@ devices:
       mode: input toggle active high
       on:
         # When this input changes to "on", execute this shell command
-        - shell: mail -s "Channel 6 turned on" example@example.com
+        - action: shell
+          command: mail -s "Channel 6 turned on, while channel 4 was 1" example@example.com
+          # But only if this particular condition is fullfilled; this lookups the device multi_io,
+          # and channel 4, and that the sensed value == 1
+          when: multi_io[4].value == 1
+
         # Also set a device channel 5 to ON.
         # This is marked "include_reset", which means that it shall exeute on events trigged by
         # device or sw reset too.
+        # Note that this does NOT have a when condition and will always be executed
         - setpio.on.include_reset: 29.211144200000.5
       off:
-        # When input changes (or is restarted) to off, send mail and turn off an output.
-        - shell.include_reset: mail -s "Channel 6 is off" example@example.com
-        - setpio.off.include_reset: 29.211144200000.5
+        # This conditional applies to all actions for this event, i.e. neither of the ones below
+        # will be executed if the condition is not fulfilled
+        when: multi_io[4].value == 1
+        actions:
+          # When input changes (or is restarted) to off, send mail and turn off an output.
+          - shell.include_reset: mail -s "Channel 6 is off" example@example.com
+          - setpio.off.include_reset: 29.211144200000.5
 
     # Unused
     ch.7: input

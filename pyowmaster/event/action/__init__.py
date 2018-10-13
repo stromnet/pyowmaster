@@ -19,6 +19,15 @@ import logging, re
 from pyowmaster.exception import *
 import pyowmaster.owidutil
 
+def parse_conditional(when, jinja_env):
+    if when is not None:
+        if isinstance(when, bool):
+            return lambda _: when
+        else:
+            return jinja_env.compile_expression(when)
+    else:
+        return lambda _: True
+
 class EventAction(object):
     """Base class to describe a parsed action which is to be executed when events on a specific device/channel/type occurs"""
     def __init__(self, inventory, dev, channel, event_type, method, action_config, single_value):
@@ -33,6 +42,11 @@ class EventAction(object):
         if "include_reset" in method:
             self.include_reset_events = True
             del method[method.index('include_reset')]
+
+    def init_conditional(self, action_config, jinja_env):
+        # Conditional execution
+        self.when = action_config.get('when', None)
+        self.conditional_expression = parse_conditional(self.when, jinja_env)
 
     def parse_target(self, tgt):
         """Tries to parse a target string in the form <dev-id | alias>.<channel> into a valid

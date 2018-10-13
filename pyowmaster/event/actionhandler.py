@@ -17,10 +17,11 @@
 #
 import collections, logging
 import importlib, inspect
+import jinja2
 
 from pyowmaster.event.handler import ThreadedOwEventHandler
 from pyowmaster.event.events import *
-from pyowmaster.event.action import EventAction
+from pyowmaster.event.action import EventAction, parse_conditional
 from pyowmaster.exception import *
 
 def create(inventory):
@@ -34,6 +35,7 @@ class ActionEventHandler(ThreadedOwEventHandler):
         self.action_factory = ActionFactory(inventory)
         self.inventory = inventory
         self.event_handlers_by_dev = {}
+        self.jinja_env = jinja2.Environment(undefined=jinja2.StrictUndefined)
         self.start()
 
     def config(self, module_config, root_config):
@@ -77,10 +79,22 @@ class ActionEventHandler(ThreadedOwEventHandler):
                         continue
 
                     # Ch configuration can have a sub-entry for each event type
-                    # These values can in turn be either a single dict with action,
-                    # or a list of dicts with action
-                    actions_for_type = ch.config[event_type_key]
-                    if actions_for_type is None:
+                    # These values can in turn be either a list of dicts with actions,
+                    # or a dict with 'when' and 'actions' keys, where the list of actions
+                    # is held under 'actions'.
+                    action_cfg_for_type = ch.config[event_type_key]
+                    if action_cfg_for_type is None:
+                        continue
+
+                    # Normalize action_cfg_for_type to dict, if it just a list
+                    if isinstance(action_cfg_for_type, collections.Sequence):
+                        # typically a list of actions
+                        action_cfg_for_type = dict(actions=action_cfg_for_type)
+
+                    if 'actions' not in action_cfg_for_type:
+                        self.log.error('expected dict with "actions" key at device %s ch %s event %s',
+                                dev, ch, event_type)
+                        failures += 1
                         continue
 
                     # Init storage
@@ -88,15 +102,18 @@ class ActionEventHandler(ThreadedOwEventHandler):
                         by_ch = event_handlers_by_dev[dev.id] = {}
                     if not by_type:
                         by_type = by_ch[ch.name] = {}
-                    event_actions = by_type[event_type] = []
 
-                    # Normalize actions_for_type to list, if it is a single entry only
-                    if isinstance(actions_for_type, collections.Mapping):
-                        actions_for_type = [actions_for_type]
+                    for_type = by_type[event_type] = {}
 
-                    for action_cfg in actions_for_type:
+                    # Shared conditional? Parsed to a default True if not set
+                    for_type['when'] = action_cfg_for_type.get('when', None)
+                    for_type['conditional'] = parse_conditional(for_type['when'], self.jinja_env)
+
+                    event_actions = for_type['actions'] = []
+                    for action_cfg in action_cfg_for_type['actions']:
                         try:
                             a = self.action_factory.create(dev, ch, event_type, action_cfg)
+                            a.init_conditional(action_cfg, self.jinja_env)
                             event_actions.append(a)
 
                             self.log.info("Adding action for %s ch %s, when %s do %s",
@@ -106,7 +123,7 @@ class ActionEventHandler(ThreadedOwEventHandler):
                             self.log.error("Failed to init '%s' action on device %s ch %s (%s): %s",
                                     event_type, dev.id, ch.name, action_cfg, e.message, exc_info=True)
 
-                            failures = failures + 1
+                            failures += 1
 
         # All created, replace active cfg
         self.event_handlers_by_dev = event_handlers_by_dev
@@ -122,16 +139,38 @@ class ActionEventHandler(ThreadedOwEventHandler):
         try:
             by_ch = self.event_handlers_by_dev[event.device_id.id]
             by_type = by_ch[event.channel]
-            actions = by_type[event.value.lower()]
+            event_type = event.value.lower()
+            for_type = by_type[event_type]
+            actions = for_type['actions']
+            conditional = for_type['conditional']
         except KeyError:
             #self.log.debug("No handler found for event %s", event)
             return
 
+        # Create a Jinja context in which we can address devices either by
+        # alias (as a variable name), or by ID via a devices['12.2322id'] map.
+        # Direct access by ID will not be possible, since jinja variable names does not
+        # allow leading digit.
+        devices = {}
+        devices.update(self.inventory.devices)
+        ctx = dict(devices=devices)
+
+        for alias, dev_id in self.inventory.aliases.iteritems():
+            ctx[alias] = devices[dev_id]
+
+        # Evaluate shared conditional first
+        if not conditional(ctx):
+            self.log.debug("Not executing actions for %s ch %s '%s' event, conditional '%s' rejected", event.device_id.id, event.channel, event_type, for_type['when'])
+            return
+
         for action in actions:
             try:
-                action.handle_event(event)
+                if action.conditional_expression(ctx):
+                    action.handle_event(event)
+                else:
+                    self.log.debug("Not executing %s, conditional '%s' rejected", action, action.when)
             except:
-                self.log.error("Failed to execute action %s", str(action), exc_info=True)
+                self.log.exception("Failed to execute action %s", action)
 
 class ActionFactory(object):
     """Factory to create Action instances based on a action_config entry"""
