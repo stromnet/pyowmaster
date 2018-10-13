@@ -15,12 +15,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-from pyowmaster.device.base import OwDevice
+
 from pyowmaster.device.pio import OwPIODevice
 from pyowmaster.exception import ConfigurationError
 
+
 def register(factory):
     factory.register("12", DS2406)
+
 
 # Alarm source mode, corresponds to set_alarm 2nd digit
 ALARM_SOURCE_NONE       = None
@@ -29,7 +31,7 @@ ALARM_SOURCE_PIO        = 2
 ALARM_SOURCE_SENSED     = 3
 
 CH_NAMES = ['A', 'B']
-CH_IDS = {'A':0, 'B':1}
+CH_IDS = {'A': 0, 'B': 1}
 
 
 class DS2406(OwPIODevice):
@@ -64,18 +66,18 @@ class DS2406(OwPIODevice):
         if self.alarm_source == ALARM_SOURCE_NONE:
             self.wanted_alarm = '000'
         else:
-            src_channel = 0 # 1=A, 2=B, 3=A+B
+            src_channel = 0  # 1=A, 2=B, 3=A+B
             src_is_latch = (self.alarm_source == ALARM_SOURCE_LATCH)
             src_pol = 1 if src_is_latch else None
 
             for ch in self.channels:
                 chnum = ch.num
-                src_channel |= (1<<chnum)
+                src_channel |= (1 << chnum)
                 if not src_is_latch:
                     # Sensed or PIO as source, determine high/low polarity
                     pol = 1 if ch.is_active_high else 0
 
-                    if src_pol != None and src_pol != pol:
+                    if src_pol is not None and src_pol != pol:
                         raise ConfigurationError("Cannot mix active high/low polarity when using alarm source other than latch")
 
                     src_pol = pol
@@ -84,7 +86,7 @@ class DS2406(OwPIODevice):
             assert src_channel >= 0 and src_channel <= 3, "Bad src_channel %d" % src_channel
             assert src_pol >= 0 and src_pol <= 1, "Bad src_pol %d" % src_pol
             alarm_str = "%d%d%d" % \
-                    (src_channel, self.alarm_source, src_pol)
+                        (src_channel, self.alarm_source, src_pol)
 
             # Trim leading zeros
             self.wanted_alarm = alarm_str.lstrip('0')

@@ -15,21 +15,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-import time
+
 from pyowmaster.device.base import OwDevice
 from pyowmaster.event.events import OwTemperatureEvent
 
+
 def register(factory):
     # Misc names, but we follow OWFS source code and call ourselfs 1820 internally.
-    factory.register("10", DS1820) # DS18S20
-    factory.register("28", DS1820) # DS18B20
-    factory.register("22", DS1820) # DS1822
-    factory.register("3B", DS1820) # DS1825
-    factory.register("42", DS1820) # DS28EA00
+    factory.register("10", DS1820)  # DS18S20
+    factory.register("28", DS1820)  # DS18B20
+    factory.register("22", DS1820)  # DS1822
+    factory.register("3B", DS1820)  # DS1825
+    factory.register("42", DS1820)  # DS28EA00
+
 
 # Min/Max temperatures per unit
-TEMP_MIN = {'C':-55, 'F': -67, 'R':392, 'K':218}
-TEMP_MAX = {'C':125, 'F': 257, 'R':716, 'K':398}
+TEMP_MIN = {'C': -55, 'F': -67, 'R': 392, 'K': 218}
+TEMP_MAX = {'C': 125, 'F': 257, 'R': 716, 'K': 398}
 
 
 class DS1820(OwDevice):
@@ -49,27 +51,27 @@ class DS1820(OwDevice):
         self.max_temp = config.get(('devices', (self.id, 'DS1820'), 'max_temp'), TEMP_MAX[self.unit])
 
         self.log.debug("%s: configured with unit %s, min %.2f, max %.2f",
-                self, self.unit,
-                self.min_temp,
-                self.max_temp)
+                       self, self.unit,
+                       self.min_temp,
+                       self.max_temp)
 
     def on_seen(self, timestamp):
-        if self.simultaneous == None:
+        if self.simultaneous is None:
             # Else, master handles temp-read via simult
             self.read_temperature(timestamp)
 
     def read_temperature(self, timestamp):
-        data =  self.ow_read_str('temperature', uncached=False)
+        data = self.ow_read_str('temperature', uncached=False)
 
         temp = float(data)
 
         # Check if it is sane
         if temp < self.min_temp or temp > self.max_temp:
-            self.log.warn("%s: outside of sane limits, ignoring (actual: %.2f %s, min: %.2f, max: %.2f)", \
-                    self, temp, self.unit, self.min_temp, self.max_temp)
+            self.log.warn("%s: outside of sane limits, ignoring (actual: %.2f %s, min: %.2f, max: %.2f)",
+                          self, temp, self.unit, self.min_temp, self.max_temp)
             return
 
-        if self.last == None:
+        if self.last is None:
             self.last = temp
 
         self.emit_event(OwTemperatureEvent(timestamp, temp, self.unit))
@@ -84,4 +86,3 @@ class DS1820(OwDevice):
         self.log.debug("%s: Silencing alarm", self)
         self.ow_write('templow', TEMP_MIN[self.unit])
         self.ow_write('temphigh', TEMP_MAX[self.unit])
-

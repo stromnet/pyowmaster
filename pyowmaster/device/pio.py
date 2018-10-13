@@ -18,7 +18,6 @@
 from pyowmaster.device.base import OwChannel, OwDevice
 from pyowmaster.event.events import OwPIOEvent
 from pyowmaster.exception import ConfigurationError, InvalidChannelError
-from collections import namedtuple, Mapping
 import logging, time
 
 # Modes of operation, per channel
@@ -30,8 +29,10 @@ PIO_MODE_INPUT_TOGGLE       = 0b01000 | PIO_MODE_INPUT
 PIO_MODE_ACTIVE_LOW   = 0b00000
 PIO_MODE_ACTIVE_HIGH  = 0b10000
 
+
 def test_bits(value, mask):
     return (value & mask) == mask
+
 
 class OwPIOBase(object):
     """A shared base class for basic PIO pin channels"""
@@ -55,8 +56,6 @@ class OwPIOBase(object):
         """
         modestr = cfg.get('mode', 'input momentary')
         self.mode = self.parse_pio_mode(modestr)
-        # Todo: add "debounce" possibility, i.e. block input
-        # for x seconds
 
         # Updated in OwPIODevice.on_alarm, or similar
         self.value = None
@@ -85,7 +84,6 @@ class OwPIOBase(object):
             # For outputs, "ON" means PIO transistor is active and the sensed output is LOW.
             cfg |= PIO_MODE_ACTIVE_LOW
 
-
         return cfg
 
     def modestr(self):
@@ -99,9 +97,9 @@ class OwPIOBase(object):
             raise ConfigurationError("Unknown mode %d" % self.mode)
 
         if self.is_active_low:
-            s+="active low"
+            s += "active low"
         elif self.is_active_high:
-            s+="active high"
+            s += "active high"
 
         return s
 
@@ -136,6 +134,7 @@ class OwPIOBase(object):
     def is_active_low(self):
         return not test_bits(self.mode, PIO_MODE_ACTIVE_HIGH)
 
+
 class OwPIOChannel(OwPIOBase, OwChannel):
     """A OwChannel for devices with PIO"""
     def __init__(self, num, name, cfg):
@@ -149,6 +148,7 @@ class OwPIOChannel(OwPIOBase, OwChannel):
 
     def __str__(self):
         return "%s %s (alias %s), mode=%s [%s,%s]" % (self.__class__.__name__, self.name, self.alias, self.modestr(), self.value, self.state)
+
 
 class OwPIODevice(OwDevice):
     """Abstract base class for use with DS2406, DS2408 and similar PIO devices.
@@ -201,7 +201,7 @@ class OwPIODevice(OwDevice):
 
     def _calculate_alarm_setting(self):
         """Override this and set self.wanted_alarm, this will be feed to set_alarm"""
-        self.wanted_alarm = None # silence pylint
+        self.wanted_alarm = None  # silence pylint
         raise NotImplementedError("_calculate_alarm_setting property must be implemented by sub class")
 
     def on_seen(self, timestamp):
@@ -212,7 +212,7 @@ class OwPIODevice(OwDevice):
         # But we are using alarm, ensure proper config..
         self.check_alarm_config()
 
-        if self._last_sensed != None:
+        if self._last_sensed is not None:
             # xXX: If already read, skip re-read... When is this
             # required? On re-start?
             return
@@ -248,8 +248,8 @@ class OwPIODevice(OwDevice):
                 event_type = OwPIOEvent.OFF
 
             event = OwPIOEvent(timestamp, ch.name, event_type, True)
-            self.log.debug("%s: ch %s event: %s", \
-                self, ch.name, event_type)
+            self.log.debug("%s: ch %s event: %s",
+                           self, ch.name, event_type)
             self.emit_event(event)
 
             ch.state = event_type
@@ -277,8 +277,8 @@ class OwPIODevice(OwDevice):
 
         last_sensed = self._last_sensed
 
-        self.log.debug("%s: alarmed, latch=%d, sensed=%d, last_sensed=%s", \
-                self, latch, sensed, last_sensed)
+        self.log.debug("%s: alarmed, latch=%d, sensed=%d, last_sensed=%s",
+                       self, latch, sensed, last_sensed)
 
         self._handle_alarm(timestamp, latch, sensed, last_sensed)
 
@@ -308,14 +308,13 @@ class OwPIODevice(OwDevice):
 
             ch_sensed = ch.is_set(sensed)
             ch_active_level = ch.is_active_high
-            ch_last_sensed = ch.is_set(last_sensed) if last_sensed != None else None
-            ch_has_changed = ch_last_sensed != ch_sensed if ch_last_sensed != None else None
+            ch_last_sensed = ch.is_set(last_sensed) if last_sensed is not None else None
+            ch_has_changed = ch_last_sensed != ch_sensed if ch_last_sensed is not None else None
 
             ch.value = ch_sensed
 
             event_type = None
-            if is_output or \
-                (is_input and ch.is_input_toggle):
+            if is_output or (is_input and ch.is_input_toggle):
                 if ch_has_changed != False:
                     if ch_sensed == ch_active_level:
                         event_type = OwPIOEvent.ON
@@ -344,8 +343,8 @@ class OwPIODevice(OwDevice):
 
             if event_type:
                 event = OwPIOEvent(timestamp, ch.name, event_type)
-                self.log.debug("%s: ch %s event: %s", \
-                    self, ch.name, event_type)
+                self.log.debug("%s: ch %s event: %s",
+                               self, ch.name, event_type)
                 self.emit_event(event)
             else:
                 self.log.debug("%s: channel %s latch change ignored", self, ch)
@@ -358,7 +357,7 @@ class OwPIODevice(OwDevice):
         reconfigured = False
         if alarm != self.wanted_alarm:
             self.log.log((logging.WARNING if self.inital_setup_done else logging.INFO),
-                    "%s: reconfiguring alarm from %s to %s", self, alarm, self.wanted_alarm)
+                         "%s: reconfiguring alarm from %s to %s", self, alarm, self.wanted_alarm)
 
             self.ow_write('set_alarm', self.wanted_alarm)
             # And clear any alarm if already set
@@ -406,4 +405,3 @@ class OwPIODevice(OwDevice):
 
         self.log.info("%s: Writing PIO.%s = %d", self, ch.name, out_value)
         self.ow_write('PIO.%s' % ch.name, out_value)
-

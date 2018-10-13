@@ -19,7 +19,7 @@
 #
 
 from __future__ import print_function
-from pyownet.protocol import bytes2str, str2bytez, ConnError, OwnetError, ProtocolError
+from pyownet.protocol import ConnError, OwnetError, ProtocolError
 import pyowmaster.device
 import pyowmaster.owidutil as owidutil
 import pyowmaster.prisched as prisched
@@ -29,7 +29,6 @@ from pyowmaster.event.handler import OwEventDispatcher
 from pyowmaster.exception import ConfigurationError, OwMasterException
 import importlib
 import time
-import traceback
 import logging
 import sys
 
@@ -37,12 +36,13 @@ __version__ = '0.0.0'
 SCAN_FULL = 0
 SCAN_ALARM = 1
 
+
 class OwMaster(object):
     """Init a new OwMaster instance with the given pyownet OwnetProxy
     """
-    def __init__(self, owNetProxy, config):
+    def __init__(self, ow_net_proxy, config):
         self.log = logging.getLogger(type(self).__name__)
-        self.ow = owNetProxy
+        self.ow = ow_net_proxy
         self.config = config
 
     def main(self):
@@ -72,8 +72,11 @@ class OwMaster(object):
         self.event_dispatcher.pause()
 
         # Init our own statistics tracker
-        self.stats = MasterStatistics(self.queue_low_prio, self.event_dispatcher,
-            self.config.get('owmaster:stats_report_interval', 60))
+        self.stats = MasterStatistics(
+            self.queue_low_prio,
+            self.event_dispatcher,
+            self.config.get('owmaster:stats_report_interval', 60)
+        )
 
         # Init bus object
         self.bus = OwBus(self.ow)
@@ -93,7 +96,7 @@ class OwMaster(object):
         self.load_handlers()
 
         # Key'ed SCAN_FULL(0) and SCAN_ALARM(1)
-        self.last_scan = [0, 0]
+        self.last_scan = [0.0, 0.0]
         self.scan_interval = [
             self.config.get('owmaster:scan_interval', 30),
             self.config.get('owmaster:alarm_scan_interval', 1.0)
@@ -103,8 +106,8 @@ class OwMaster(object):
         self.scan_conn_errs = 0
 
         self.log.debug("Configured for scanning every %.2fs, alarm scanning every %.1fs",
-                        self.scan_interval[SCAN_FULL],
-                        self.scan_interval[SCAN_ALARM])
+                       self.scan_interval[SCAN_FULL],
+                       self.scan_interval[SCAN_ALARM])
 
         self.event_dispatcher.resume()
 
@@ -129,7 +132,6 @@ class OwMaster(object):
                 self.log.error("Unhandled ProtocolError: %s", e, exc_info=True)
             except ConnError, e:
                 self.log.error("Unhandled ConnError: %s", e, exc_info=False)
-
 
     def shutdown(self):
         """Shutdown all background operations, if any"""
@@ -166,7 +168,6 @@ class OwMaster(object):
                     pass
                 raise
 
-
     def scan(self, scan_mode):
         backoff = 0
         try:
@@ -184,17 +185,16 @@ class OwMaster(object):
                 # Read bus statistics through pseudo-devoce
                 self.owstats.on_seen(time.time())
 
-        except ConnError, e:
+        except ConnError:
             self.scan_conn_errs += 1
             backoff = min((self.scan_conn_errs * 2) + 1, 20)
             self.log.error("Connection error while executing main loop. Waiting %ds and retrying",
-                    backoff)
+                           backoff)
         finally:
             self.scan_queue[scan_mode](
                     self.scan_interval[scan_mode] + backoff,
                     self.scan,
                     [scan_mode])
-
 
     def _scan(self, alarm_mode):
         try:
@@ -225,7 +225,7 @@ class OwMaster(object):
 
             # Finds existing device or creates new, if family is known
             dev = self.inventory.find(dev_id, create=True)
-            if dev == None:
+            if dev is None:
                 # Not supported
                 continue
 
@@ -269,9 +269,8 @@ class OwMaster(object):
 
                         dev.lost += 1
 
-
                 self.log.info("Missing %d (of %d) devices: %s",
-                        len(missing), self.inventory.size(), ', '.join(map(str, missing)))
+                              len(missing), self.inventory.size(), ', '.join(map(str, missing)))
                 self.stats.increment('error.lost_devices', len(missing))
 
             # TODO: Handle some way
@@ -300,9 +299,9 @@ class OwMaster(object):
                 self.queue_high_prio(0, queue_pauser, [dev.on_alarm, timestamp])
             else:
                 self.queue_low_prio(0, queue_pauser, [dev.on_seen, timestamp])
-                if dev.simultaneous != None:
+                if dev.simultaneous is not None:
                     # Device supports simultaneous handling, enqueue it
-                    if not simultaneous.has_key(dev.simultaneous):
+                    if dev.simultaneous not in simultaneous:
                         simultaneous[dev.simultaneous] = []
 
                     simultaneous[dev.simultaneous].append(dev)
@@ -310,7 +309,7 @@ class OwMaster(object):
         # Process any simultaneous requests
         if len(simultaneous.keys()) != 0:
             # Simultaneous temperature conversions?
-            if simultaneous.has_key('temperature'):
+            if 'temperature' in simultaneous:
                 devs = simultaneous.pop('temperature')
                 self.simultaneous_temperature(devs)
 
@@ -339,7 +338,7 @@ class OwMaster(object):
         convert_start_ts = time.time()
         self.simultaneous_temperature_pending = time.time()
         self.log.debug("Simultaneous temperature executed in %.2fms",
-                self.bus.last_io_stats.time*1000)
+                       self.bus.last_io_stats.time*1000)
 
         # Set *after* successful ow_write, it may fail.
         self.simultaneous_temperature_pending = True
@@ -355,12 +354,10 @@ class OwMaster(object):
             self.queue_low_prio(0, dev.read_temperature, [convert_start_ts])
 
 
-
-
 class DeviceFactory(object):
-    def __init__(self, owNetProxy, event_dispatcher, stats, config):
+    def __init__(self, ow_net_proxy, event_dispatcher, stats, config):
         self.log = logging.getLogger(type(self).__name__)
-        self.ow = owNetProxy
+        self.ow = ow_net_proxy
         self.device_types = {}
         self.event_dispatcher = event_dispatcher
         self.stats = stats
@@ -372,13 +369,13 @@ class DeviceFactory(object):
             m.register(self)
 
     def register(self, family_code, class_ref):
-        assert self.device_types.get(family_code) == None, "Family code %s already registered" % family_code
+        assert self.device_types.get(family_code) is None, "Family code %s already registered" % family_code
         self.device_types[family_code] = class_ref
 
     def create(self, dev_id):
         family = dev_id[0:2]
         dev_type = self.device_types.get(family)
-        if dev_type == None:
+        if dev_type is None:
             self.log.info("Cannot create device with family code %s, not registered", family)
             return None
 
@@ -389,7 +386,7 @@ class DeviceFactory(object):
             dev.config(self.config)
         except (ProtocolError, OwnetError, ConnError) as e:
             self.log.warn("Failed to configure %s, OW failure: %s",
-                    dev_id, e)
+                          dev_id, e)
 
         return dev
 
@@ -459,10 +456,10 @@ class DeviceInventory(object):
                 # but failed to find it, or if it failed to configure the remote device.
                 # It should try later!
                 self.log.warn("Failed to configure %s, OW failure: %s",
-                        dev, e)
+                              dev, e)
             except OwMasterException:
                 self.log.error("Failed to configure device %s",
-                        dev, exc_info=True)
+                               dev, exc_info=True)
 
             if dev.alias:
                 self._add_alias(dev.alias, dev_id)
@@ -483,14 +480,14 @@ class DeviceInventory(object):
             return None
 
         dev = self.devices.get(dev_id)
-        if dev == None:
+        if dev is None:
             if not create:
                 return None
 
             dev = self._create_device(dev_id)
 
         if dev == False:
-            # But always return None..
+            # If _create_device gave explicit False, return None.
             return None
 
         return dev
@@ -506,7 +503,7 @@ class DeviceInventory(object):
         """
         dev = self.factory.create(dev_id)
 
-        if dev == None:
+        if dev is None:
             # Not supported. Store False in dict
             dev = False
         else:
@@ -515,6 +512,7 @@ class DeviceInventory(object):
                 self._add_alias(dev.alias, dev_id)
 
         self.devices[dev_id] = dev
+        return dev
 
     def _add_alias(self, alias, dev_id):
         """Add a device alias to the aliases mapping.
@@ -526,7 +524,7 @@ class DeviceInventory(object):
                 return
 
             self.log.warn("Duplicate alias %s, seen on device %s and device %s",
-                    alias, dev_id, self.aliases[alias])
+                          alias, dev_id, self.aliases[alias])
 
         self.aliases[alias] = dev_id
 
@@ -541,8 +539,8 @@ class DeviceInventory(object):
         matching channel was found, channel is False
         """
         (alias_or_id, ch_name) = owidutil.parse_target(tgt)
-        if alias_or_id == None:
-            return (None, None)
+        if alias_or_id is None:
+            return None, None
 
         dev = self.devices.get(alias_or_id, None)
         if not dev:
@@ -555,7 +553,7 @@ class DeviceInventory(object):
 
         # Should have a device now.
         ch = dev[ch_name]
-        return (dev, ch)
+        return dev, ch
 
     def list(self, skip_list=None):
         """Return a list of all known devices.
@@ -639,4 +637,3 @@ class MasterStatistics:
             self.event_dispatcher.handle_event(ev)
 
         self.queue(self.report_interval, self.report)
-

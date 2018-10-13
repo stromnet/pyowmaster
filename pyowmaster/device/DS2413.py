@@ -15,14 +15,17 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-from pyowmaster.device.base import OwDevice
+
 from pyowmaster.device.pio import *
+
 
 def register(factory):
     factory.register("3A", DS2413)
 
+
 CH_NAMES = ['A', 'B']
 CH_IDS = {'A':0, 'B':1}
+
 
 class DS2413(OwPIODevice):
     def __init__(self, ow, owid):
@@ -34,4 +37,3 @@ class DS2413(OwPIODevice):
 
     def _ch_translate_rev(self, ch):
         return CH_IDS[ch.upper()]
-

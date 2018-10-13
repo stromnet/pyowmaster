@@ -20,15 +20,16 @@ from pyowmaster.device.base import OwDevice, DeviceId
 from pyowmaster.event.events import OwStatisticsEvent
 
 ERRORS = ("BUS_bit_errors", "BUS_byte_errors", "BUS_detect_errors",
-    "BUS_echo_errors", "BUS_level_errors", "BUS_next_alarm_errors",
-    "BUS_next_errors", "BUS_readin_data_errors", "BUS_status_errors",
-    "BUS_tcsetattr_errors",
-    "CRC16_errors", "CRC8_errors",
-    "DS2480_level_docheck_errors", "DS2480_read_fd_isset",
-    "DS2480_read_null", "DS2480_read_read",
-    "NET_accept_errors", "NET_connection_errors", "NET_read_errors")
+          "BUS_echo_errors", "BUS_level_errors", "BUS_next_alarm_errors",
+          "BUS_next_errors", "BUS_readin_data_errors", "BUS_status_errors",
+          "BUS_tcsetattr_errors",
+          "CRC16_errors", "CRC8_errors",
+          "DS2480_level_docheck_errors", "DS2480_read_fd_isset",
+          "DS2480_read_null", "DS2480_read_read",
+          "NET_accept_errors", "NET_connection_errors", "NET_read_errors")
 
 TRIES = ("CRC16_tries", "CRC8_tries", "read_tries")
+
 
 class OwStatistics(OwDevice):
     """Implements a pseudo device which fetches statistics"""

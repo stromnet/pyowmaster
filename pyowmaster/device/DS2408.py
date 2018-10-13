@@ -15,11 +15,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-from pyowmaster.device.base import OwDevice
 from pyowmaster.device.pio import *
+
 
 def register(factory):
     factory.register("29", DS2408)
+
 
 # Per-device alarm source + logical term
 ALARM_SOURCE_NONE       = None
@@ -27,6 +28,7 @@ ALARM_SOURCE_PIO_OR     = 0
 ALARM_SOURCE_LATCH_OR   = 1
 ALARM_SOURCE_PIO_AND    = 2
 ALARM_SOURCE_LATCH_AND  = 3
+
 
 class DS2408(OwPIODevice):
     def __init__(self, ow, owid):
@@ -51,17 +53,15 @@ class DS2408(OwPIODevice):
             # Low order Y (last in string) is ch 0
             alarm_str = "%d" % self.alarm_source
             for ch in self.channels:
-                chnum = ch.num
-                
                 if src_is_latch:
                     # Interested, and it's latch. Set Selected HIGH
                     alarm_str += "3"
                 else:
                     # PIO as source, determine high/low polarity 
                     if ch.is_active_high:
-                        alarm_str += "3" # Selected HIGH
+                        alarm_str += "3"  # Selected HIGH
                     else:
-                        alarm_str += "2" # Selected LOW
+                        alarm_str += "2"  # Selected LOW
 
             assert self.alarm_source >= 0 and self.alarm_source <= 3, "Bad alarm_source %d" % self.alarm_source 
             assert len(alarm_str) == 9, "Bad alarm_str %s" % alarm_str
@@ -81,7 +81,7 @@ class DS2408(OwPIODevice):
         if por != 0:
             self.log.info("%s: power-up alarm, resetting & clearing latches", self)
             self.ow_write('por', 0)
-            self.ow_write('out_of_testmode', 0) # Just to be sure...
+            self.ow_write('out_of_testmode', 0)  # Just to be sure...
             self.ow_write('latch.BYTE', '1')
 
         if super(DS2408, self).check_alarm_config():
@@ -89,4 +89,3 @@ class DS2408(OwPIODevice):
 
         # Return True if we did POR fix, meaning ignore alarm condition
         return por != 0
-

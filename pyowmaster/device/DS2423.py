@@ -18,14 +18,16 @@
 from pyowmaster.device.base import OwDevice, OwChannel
 from pyowmaster.event.events import OwCounterEvent
 
+
 def register(factory):
     factory.register("1D", DS2423)
+
 
 class DS2423(OwDevice):
     """Handles DS2423 dual counter chip"""
     def __init__(self, ow, owid):
-       super(DS2423, self).__init__(ow, owid)
-       self.channels = (OwChannel(0, 'A', {}), OwChannel(1, 'B', {}))
+        super(DS2423, self).__init__(ow, owid)
+        self.channels = (OwChannel(0, 'A', {}), OwChannel(1, 'B', {}))
 
     def on_seen(self, timestamp):
         """Read A,B counter"""

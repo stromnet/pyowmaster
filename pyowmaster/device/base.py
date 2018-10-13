@@ -28,6 +28,7 @@ OwIoStatistic.OPS = [0, 'read', 'write', 'dir']
 
 DeviceId = namedtuple('DeviceId', 'id alias')
 
+
 class Device(object):
     def __init__(self, ow, owid):
         self.type = type(self).__name__
@@ -42,6 +43,7 @@ class Device(object):
 
     def config(self, config):
         pass
+
 
 class OwDevice(Device):
     def __init__(self, ow, owid):
@@ -67,11 +69,12 @@ class OwDevice(Device):
 
         self.device_id = DeviceId(self.id, self.alias)
 
-        self.max_exec_time = [None,
-                config.get(('devices', (self.id, self.type), 'max_read_time'), 1),
-                config.get(('devices', (self.id, self.type), 'max_write_time'), 1),
-                config.get(('devices', (self.id, self.type), 'max_dir_time'), 2)
-            ]
+        self.max_exec_time = [
+            None,
+            config.get(('devices', (self.id, self.type), 'max_read_time'), 1),
+            config.get(('devices', (self.id, self.type), 'max_write_time'), 1),
+            config.get(('devices', (self.id, self.type), 'max_dir_time'), 2)
+        ]
 
     def __getitem__(self, name_or_num):
         """
@@ -173,10 +176,11 @@ class OwDevice(Device):
         self.stats.increment('ops.ms_' + OwIoStatistic.OPS[stats.operation], stats.time*1000.0)
 
         if stats.time > self.max_exec_time[stats.operation]:
-            self.log.warn("%s: %s %s took %.2fs (max_exec_time %.2fs)", stats.id, OwIoStatistic.OPS[stats.operation], stats.path, stats.time, self.max_exec_time[stats.operation])
+            self.log.warn("%s: %s %s took %.2fs (max_exec_time %.2fs)",
+                          stats.id, OwIoStatistic.OPS[stats.operation], stats.path, stats.time, self.max_exec_time[stats.operation])
         elif self.log.isEnabledFor(logging.DEBUG):
-            self.log.debug("%s: %s %s took %.2fs (max_exec_time %.2fs)", stats.id, OwIoStatistic.OPS[stats.operation], stats.path, stats.time, self.max_exec_time[stats.operation])
-
+            self.log.debug("%s: %s %s took %.2fs (max_exec_time %.2fs)",
+                           stats.id, OwIoStatistic.OPS[stats.operation], stats.path, stats.time, self.max_exec_time[stats.operation])
 
     def on_seen(self, timestamp):
         pass
@@ -203,6 +207,7 @@ class OwBus(OwDevice):
 
     def on_alarm(self, timestamp):
         raise NotImplementedError("Not supposed to call on_alarm on OwBus")
+
 
 class OwChannel(object):
     """Represents some kind of channel on a 1Wire device
