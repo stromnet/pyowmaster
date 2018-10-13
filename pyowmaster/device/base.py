@@ -74,8 +74,12 @@ class OwDevice(Device):
             ]
 
     def __getitem__(self, name_or_num):
-        """If device supports channels, return channel identified by name_or_num.
-        If device does not have channel support, return None. If channel not found, return False
+        """
+        If device supports channels, return channel identified by name_or_num.
+        Matches on both name, ch #, and any channel alias.
+
+        If device does not have channel support, return None.
+        If channel not found, return False
         """
         if not name_or_num or not hasattr(self, 'channels'):
             return None
@@ -90,7 +94,7 @@ class OwDevice(Device):
             channel_list = self.channels.values()
 
         for c in channel_list:
-            if c.num == name_or_num or c.name == name_or_num:
+            if c.num == name_or_num or c.name == name_or_num or c.alias == name_or_num:
                 return c
 
         return False
