@@ -1,0 +1,6 @@
+pyownet
+pyyaml
+jinja2
+six
+requests
+rrdtool
