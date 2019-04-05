@@ -243,8 +243,8 @@ class ActionFactory(object):
         will tell the 'pio' module to run action 'on' for the specified device.
         """
         if len(action_config) == 1 and 'action' not in action_config:
-            action_target = action_config.keys()[0]
-            single_value = action_config.values()[0]
+            action_target = list(action_config.keys())[0]
+            single_value = list(action_config.values())[0]
         else:
             action_target = action_config.get('action', None)
             single_value = None

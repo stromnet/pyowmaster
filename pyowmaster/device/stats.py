@@ -56,7 +56,7 @@ class OwStatistics(OwDevice):
                 # XXX: Yes, CRC16_tries and CRC8_tries is under errors..
                 path = "errors/%s" % e
 
-            data = self.ow_read(path)
+            data = self.ow_read_str(path)
             if e == 'read_tries':
                 read_tries = data.split(',')
                 for n in range(0, len(read_tries)):

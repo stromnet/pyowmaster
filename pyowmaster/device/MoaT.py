@@ -505,7 +505,7 @@ class MoaTADCChannel(MoaTChannel):
             self.states.append((state_name, low, high, guess))
 
         # Sort by low
-        self.states.sort(lambda a, b: cmp(a[1], b[1]))
+        self.states = sorted(self.states, key=lambda x: x[1])
 
         # TODO: Check sanity?
 

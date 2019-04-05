@@ -94,7 +94,7 @@ class Main:
         try:
             with open(self.cfgfile) as f:
                 # CATHC IN RELOAD!
-                cfg = yaml.load(f)
+                cfg = yaml.safe_load(f)
                 if not cfg:
                     cfg = {}
 
