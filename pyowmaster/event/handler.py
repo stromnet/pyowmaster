@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 import logging
-import threading, Queue
+import threading, queue
 
 
 class OwEventHandler(object):
@@ -116,7 +116,7 @@ class ThreadedOwEventHandler(OwEventHandler):
     def __init__(self, max_queue_size=0):
         super(ThreadedOwEventHandler, self).__init__()
         self.thread = threading.Thread(target=self._run)
-        self.queue = Queue.Queue(maxsize=max_queue_size)
+        self.queue = queue.Queue(maxsize=max_queue_size)
 
     def start(self):
         if not self.thread.isAlive():

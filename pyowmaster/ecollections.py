@@ -39,7 +39,7 @@ def resolve_keys(keys):
         if part == None:
             continue
 
-        if type(part) in (int, str, unicode):
+        if type(part) in (int, str):
             # Plain string/int, add to end of every known mutation
             if len(res) == 0:
                 res.append(str(part))
@@ -116,14 +116,14 @@ class GetterMixin(object):
         if isinstance(data, str):
             # This is also a Sequence!
             return data
-        elif isinstance(data, collections.Mapping):
+        elif isinstance(data, collections.abc.Mapping):
             return EnhancedMapping(data)
-        elif isinstance(data, collections.Sequence):
+        elif isinstance(data, collections.abc.Sequence):
             return EnhancedSequence(data)
 
         return data
 
-class EnhancedMapping(GetterMixin, collections.MutableMapping):
+class EnhancedMapping(GetterMixin, collections.abc.MutableMapping):
     """Wraps MutableMapping (dict) with 'get' decorator from GetterMixin"""
     def __init__(self, d):
         self.d = d
@@ -147,13 +147,13 @@ class EnhancedMapping(GetterMixin, collections.MutableMapping):
         return self.d.__repr__()
 
     def items(self):
-        return self.d.items()
+        return list(self.d.items())
 
     def __eq__(self, other):
         return self.d.__eq__(other)
 
 
-class EnhancedSequence(GetterMixin, collections.MutableSequence):
+class EnhancedSequence(GetterMixin, collections.abc.MutableSequence):
     """Wraps MutableSequence(list/tuple) with 'get' decorator from GetterMixin"""
     def __init__(self, d):
         self.d = d

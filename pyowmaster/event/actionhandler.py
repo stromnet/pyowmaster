@@ -90,7 +90,7 @@ class ActionEventHandler(ThreadedOwEventHandler):
                         continue
 
                     # Normalize action_cfg_for_type to dict, if it just a list
-                    if isinstance(action_cfg_for_type, collections.Sequence):
+                    if isinstance(action_cfg_for_type, collections.abc.Sequence):
                         # typically a list of actions
                         action_cfg_for_type = dict(actions=action_cfg_for_type)
 
@@ -183,7 +183,7 @@ class ActionEventHandler(ThreadedOwEventHandler):
 
         # Add any aliases with direct access. Aliases which are not valid names will just not be
         # reachable.
-        for alias, dev_id in self.inventory.aliases.iteritems():
+        for alias, dev_id in list(self.inventory.aliases.items()):
             ctx[alias] = devices[dev_id]
 
         if event_cfg['last_occurred'] is not None:

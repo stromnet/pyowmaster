@@ -121,7 +121,7 @@ class OwDevice(Device):
 
         if isinstance(data, str):
             data = str2bytez(data)
-        elif isinstance(data, (int, long)):
+        elif isinstance(data, int):
             data = str2bytez(str(data))
 
         tS = time()
@@ -159,7 +159,7 @@ class OwDevice(Device):
         """Read a string path which contains comma separated integer values,
         and return a list of each value as an int"""
         raw = self.ow_read_str(sub_path, uncached=uncached)
-        return map(int, map(unicode.strip, raw.split(',')))
+        return list(map(int, map(str.strip, raw.split(','))))
 
     def emit_event(self, event, skip_device_id=False):
         if not event.device_id and not skip_device_id:

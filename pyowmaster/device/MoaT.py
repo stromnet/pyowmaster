@@ -157,7 +157,7 @@ class MoaT(OwDevice):
                 seen_channels.append(ch.name)
 
         # Clean up dead channels, if we was re-inited
-        for ch in self.channels.keys():
+        for ch in list(self.channels.keys()):
             if ch not in seen_channels:
                 self.channels[ch].destroy()
                 del self.channels[ch]
@@ -551,7 +551,7 @@ class MoaTADCChannel(MoaTChannel):
         if not hasattr(self, 'states'):
             return ()
 
-        return map(lambda x: x[0], self.states)
+        return [x[0] for x in self.states]
 
     @classmethod
     def read_all(cls, device):

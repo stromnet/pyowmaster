@@ -60,7 +60,7 @@ class SetPioAction(EventAction):
         try:
             value = {'on':True, 'off':False}[self.tgt_method]
             self.tgt_dev.set_output(self.tgt_ch, value)
-        except OwnetError, e:
+        except OwnetError as e:
             self.log.error("Failed to execute SetPioValue action: %s", e)
 
     def __str__(self):

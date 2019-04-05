@@ -62,7 +62,7 @@ class Main:
                             port=ow_port, verbose=False, flags=flags, persistent=persistent),
                         self.cfg)
                     break
-                except ConnError, e:
+                except ConnError as e:
                     tries += 1
                     backoff = min((tries * 2) + 1, 60)
                     log.warn("Failed initial connect to owserver on port %d, retrying in %ds: %s",

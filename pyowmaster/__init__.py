@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from __future__ import print_function
+
 from pyownet.protocol import ConnError, OwnetError, ProtocolError
 import pyowmaster.device
 import pyowmaster.owidutil as owidutil
@@ -126,11 +126,11 @@ class OwMaster(object):
             except KeyboardInterrupt:
                 self.log.info("Exiting")
                 break
-            except OwnetError, e:
+            except OwnetError as e:
                 self.log.error("Unhandled OwnetError: %s", e, exc_info=True)
-            except ProtocolError, e:
+            except ProtocolError as e:
                 self.log.error("Unhandled ProtocolError: %s", e, exc_info=True)
-            except ConnError, e:
+            except ConnError as e:
                 self.log.error("Unhandled ConnError: %s", e, exc_info=False)
 
     def shutdown(self):
@@ -204,7 +204,7 @@ class OwMaster(object):
             else:
                 self.stats.increment('tries.full_scan')
                 ids = self.bus.ow_dir(uncached=True)
-        except OwnetError, e:
+        except OwnetError as e:
             self.log.error("Bus scan failed: %s", e)
             self.stats.gauge('bus.device_cnt', 0)
             return
@@ -576,7 +576,7 @@ class DeviceInventory(object):
         return out
 
     def __iter__(self):
-        return self.devices.values().__iter__()
+        return list(self.devices.values()).__iter__()
 
     def size(self):
         return len(self.devices)

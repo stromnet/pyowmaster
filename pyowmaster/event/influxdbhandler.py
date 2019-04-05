@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 import collections
-import Queue
+import queue
 import time
 import threading
 from six import binary_type, text_type, integer_types, PY2
@@ -164,7 +164,7 @@ class InfluxDBEventHandler(OwEventHandler):
         extra_tags = module_config.get('extra_tags', None)
         self.extra_tags = {}
         if extra_tags:
-            if isinstance(extra_tags, collections.Mapping):
+            if isinstance(extra_tags, collections.abc.Mapping):
                 self.extra_tags.update(extra_tags)
 
         self.start()
@@ -174,7 +174,7 @@ class InfluxDBEventHandler(OwEventHandler):
             self.log.debug("InfluxDB handler configured for %s, database %s",
                            self.server, self.database)
 
-            self.queue = Queue.Queue(self.max_queue_size)
+            self.queue = queue.Queue(self.max_queue_size)
             self.thread.start()
 
     def handle_event(self, event):
@@ -233,10 +233,10 @@ class InfluxDBEventHandler(OwEventHandler):
             try:
                 self.queue.put(line, False)
                 return
-            except Queue.Full:
+            except queue.Full:
                 try:
                     self.queue.get(False)
-                except Queue.Empty:
+                except queue.Empty:
                     # Could have been drained by other end
                     pass
 
@@ -285,7 +285,7 @@ class InfluxDBEventHandler(OwEventHandler):
                     try:
                         line = self.queue.get(block, timeout)
                         self.queue.task_done()
-                    except Queue.Empty:
+                    except queue.Empty:
                         # End batch-fill loop
                         break
 
@@ -392,7 +392,7 @@ class InfluxDBEventHandler(OwEventHandler):
                 # Something else
                 return False
 
-        except requests.exceptions.RequestException, e:
+        except requests.exceptions.RequestException as e:
             self.log.warn("Failed to talk to InfluxDB: %s", e)
             return False
 

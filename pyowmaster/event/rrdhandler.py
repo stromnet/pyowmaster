@@ -44,7 +44,7 @@ class RRDOwEventHandler(ThreadedOwEventHandler):
             try:
                 fd = open(fn, 'w+')
                 os.unlink(fn)
-            except IOError, e:
+            except IOError as e:
                 if e.errno == 13:
                     raise Exception("Cannot write to specified RRD path %s" % rrdpath)
 
