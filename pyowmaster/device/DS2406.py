@@ -44,11 +44,12 @@ class DS2406(OwPIODevice):
         # Not configurable right now; alarm handler does not support other than latch.
         self.alarm_source = ALARM_SOURCE_LATCH
 
-    def config(self, config):
+    def custom_config(self, config, is_initial):
         # Allow config to specify channels; mostly for being able to test config handling
         # when device is not online since we normally read this from device
         self._num_channels = config.get(('devices', self.id, 'num_channels'), 0)
-        super(DS2406, self).config(config)
+
+        super(DS2406, self).custom_config(config, is_initial)
 
     @property
     def num_channels(self):

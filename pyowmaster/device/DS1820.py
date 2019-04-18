@@ -43,9 +43,7 @@ class DS1820(OwDevice):
         # TODO: Configurable
         self.simultaneous = "temperature"
 
-    def config(self, config):
-        super(DS1820, self).config(config)
-
+    def custom_config(self, config, is_initial):
         self.unit = config.get('owmaster:temperature_unit', 'C').upper()
         self.min_temp = config.get(('devices', (self.id, 'DS1820'), 'min_temp'), TEMP_MIN[self.unit])
         self.max_temp = config.get(('devices', (self.id, 'DS1820'), 'max_temp'), TEMP_MAX[self.unit])

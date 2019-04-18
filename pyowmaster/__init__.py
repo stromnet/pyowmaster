@@ -78,15 +78,17 @@ class OwMaster(object):
             self.config.get('owmaster:stats_report_interval', 60)
         )
 
+        self.log.debug('Initing pyowmaster')
+
         # Init bus object
         self.bus = OwBus(self.ow)
         self.bus.init(self.event_dispatcher, self.stats)
-        self.bus.config(self.config)
+        self.bus.config(self.config, True)
 
         # Init pseudo-device fetching statistics from OWFS
         self.owstats = OwStatistics(self.ow)
         self.owstats.init(self.event_dispatcher, self.stats)
-        self.owstats.config(self.config)
+        self.owstats.config(self.config, True)
 
         # Init a factory, and then an associated inventory
         self.factory = DeviceFactory(self.ow, self.event_dispatcher, self.stats, self.config)
@@ -383,7 +385,7 @@ class DeviceFactory(object):
         dev.init(self.event_dispatcher, self.stats)
 
         try:
-            dev.config(self.config)
+            dev.config(self.config, True)
         except (ProtocolError, OwnetError, ConnError) as e:
             self.log.warning("Failed to configure %s, OW failure: %s",
                              dev_id, e)
@@ -398,6 +400,7 @@ class DeviceInventory(object):
         self.aliases = {}
         self.factory = factory
 
+        self.log.debug('Loading configured devices')
         self.refresh_config(config)
 
     def refresh_config(self, root_config):
@@ -450,7 +453,7 @@ class DeviceInventory(object):
                 continue
 
             try:
-                dev.config(root_config)
+                dev.config(root_config, False)
             except OwnetError as e:
                 # This may occur if a device config requires online device,
                 # but failed to find it, or if it failed to configure the remote device.

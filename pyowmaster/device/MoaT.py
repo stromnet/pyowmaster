@@ -17,7 +17,7 @@
 #
 
 from pyowmaster.device.pio import *
-from pyowmaster.event.events import OwAdcEvent, OwCounterEvent, OwPIOEvent
+from pyowmaster.event.events import OwAdcEvent, OwCounterEvent, OwPIOEvent, OwConfigEvent
 from pyowmaster.exception import InvalidChannelError
 from pyownet.protocol import OwnetError
 import time
@@ -82,9 +82,7 @@ class MoaT(OwDevice):
         super(MoaT, self).__init__(ow, owid)
         self.device_name = None
 
-    def config(self, config):
-        super(MoaT, self).config(config)
-
+    def custom_config(self, config, is_initial):
         # Keep config for future re-configuration
         self.dev_cfg = config
 
@@ -112,6 +110,7 @@ class MoaT(OwDevice):
         """Call when reboot is detected, triggers re-init of all channels"""
         self.log.warning("%s: device rebooted, trigged by '%s'", self, reason)
         self.init_channels(self.dev_cfg)
+        self.emit_event(OwConfigEvent(time.time()))
 
     def init_channels(self, config):
         """Detect device configuration and initialize all channels"""

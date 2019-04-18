@@ -169,9 +169,7 @@ class OwPIODevice(OwDevice):
         self.inital_setup_done = False
         self._last_sensed = None
 
-    def config(self, config):
-        super(OwPIODevice, self).config(config)
-
+    def custom_config(self, config, is_initial):
         self.channels = []
         # For each channel on the device, create a OwPIOChannel object and put in channels list
         for chnum in range(self.num_channels):

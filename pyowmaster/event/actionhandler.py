@@ -36,7 +36,7 @@ class ActionEventHandler(ThreadedOwEventHandler):
         super(ActionEventHandler, self).__init__(max_queue_size)
 
         self.action_factory = ActionFactory(inventory)
-        self.inventory = inventory
+        self.inventory = inventory  # type: pyowmaster.DeviceInventory
         self.event_handlers_by_dev = {}
         self.jinja_env = init_jinja2()
         self.start()
@@ -57,94 +57,128 @@ class ActionEventHandler(ThreadedOwEventHandler):
         event_handlers_by_dev = {}
 
         for dev in self.inventory:
-            # Only handle devices with a "channels" list
-            if not hasattr(dev, 'channels'):
-                continue
-
-            by_ch = None
-            channel_list = dev.channels
-
-            # Some devices has a dict with name->channel
-            if isinstance(dev.channels, dict):
-                channel_list = dev.channels.values()
-
-            for ch in channel_list:
-                by_type = None
-
-                # Find any configuration for each of the event types this channel may dispatch
-                self.log.debug("%s ch %s can do %s", dev, ch, ch.get_event_types())
-                for event_type in ch.get_event_types():
-                    # True/false is used since YAML converts 'on' to True, 'off' to False
-                    event_type_key = event_type
-                    if event_type == 'on': event_type_key = True
-                    if event_type == 'off': event_type_key = False
-                    if event_type_key not in ch.config:
-                        continue
-
-                    # Ch configuration can have a sub-entry for each event type
-                    # These values can in turn be either a list of dicts with actions,
-                    # or a dict with 'when' and 'actions' keys, where the list of actions
-                    # is held under 'actions'.
-                    action_cfg_for_type = ch.config[event_type_key]
-                    if action_cfg_for_type is None:
-                        continue
-
-                    # Normalize action_cfg_for_type to dict, if it just a list
-                    if isinstance(action_cfg_for_type, collections.abc.Sequence):
-                        # typically a list of actions
-                        action_cfg_for_type = dict(actions=action_cfg_for_type)
-
-                    if 'actions' not in action_cfg_for_type:
-                        self.log.error('expected dict with "actions" key at device %s ch %s event %s',
-                                dev, ch, event_type)
-                        failures += 1
-                        continue
-
-                    # Init storage
-                    if not by_ch:
-                        by_ch = event_handlers_by_dev[dev.id] = {}
-                    if not by_type:
-                        by_type = by_ch[ch.name] = {}
-
-                    # For each configured event, this "event config" holds details of it
-                    when_condition = action_cfg_for_type.get('when', None)
-                    event_actions = []
-                    by_type[event_type] = dict(
-                        # If a conditional was set for the event (not individual actions)
-                        when=when_condition,
-                        conditional=parse_conditional(when_condition, self.jinja_env),
-                        # When the event last occurred
-                        last_occurred=None,
-                        # When the event last was executed (i.e. not stopped by shared conditional)
-                        # Note that each individual event may still have been blocked.
-                        last_ran=None,
-                        # Which actions to execute
-                        actions=event_actions
-                    )
-
-                    # Try to load each configured action
-                    for action_cfg in action_cfg_for_type['actions']:
-                        try:
-                            a = self.action_factory.create(dev, ch, event_type, action_cfg)
-                            a.init_conditional(action_cfg, self.jinja_env)
-                            event_actions.append(a)
-
-                            self.log.info("Adding action for %s ch %s, when %s do %s",
-                                    dev.id, ch, event_type, a)
-
-                        except OwMasterException as e:
-                            self.log.error("Failed to init '%s' action on device %s ch %s (%s): %s",
-                                    event_type, dev.id, ch.name, action_cfg, e.message, exc_info=True)
-
-                            failures += 1
+            failures += self._config_device(dev, event_handlers_by_dev)
 
         # All created, replace active cfg
         self.event_handlers_by_dev = event_handlers_by_dev
 
         if failures > 0:
-            self.log.warning("One or more error(s) occured during action initialization")
+            self.log.warning("One or more error(s) occurred during action initialization")
+
+    def _updated_device_config(self, device_id):
+        dev = self.inventory.find(device_id)
+        if not dev:
+            self.log.error('OwConfigEvent for unknown device %s', device_id)
+            return
+
+        event_handlers_by_dev = {}
+        self.log.debug("Reconfiguring any action handlers for %s", dev)
+        failures = self._config_device(dev, event_handlers_by_dev)
+        if failures > 0:
+            self.log.warning("Failed to init action initialization for device %s", dev)
+
+        if dev.id not in event_handlers_by_dev:
+            # No action handlers defined for this device.
+            return
+
+        # Update config for this device
+        self.event_handlers_by_dev[dev.id] = event_handlers_by_dev[dev.id]
+
+    def _config_device(self, dev, event_handlers_by_dev):
+        failures = 0
+        # Only handle devices with a "channels" list
+        if not hasattr(dev, 'channels'):
+            return failures
+
+        by_ch = None
+        channel_list = dev.channels
+
+        # Some devices has a dict with name->channel
+        if isinstance(dev.channels, dict):
+            channel_list = dev.channels.values()
+
+        for ch in channel_list:
+            by_type = None
+
+            # Find any configuration for each of the event types this channel may dispatch
+            self.log.debug("%s ch %s can do %s", dev, ch, ch.get_event_types())
+            for event_type in ch.get_event_types():
+                # True/false is used since YAML converts 'on' to True, 'off' to False
+                event_type_key = event_type
+                if event_type == 'on': event_type_key = True
+                if event_type == 'off': event_type_key = False
+                if event_type_key not in ch.config:
+                    continue
+
+                # Ch configuration can have a sub-entry for each event type
+                # These values can in turn be either a list of dicts with actions,
+                # or a dict with 'when' and 'actions' keys, where the list of actions
+                # is held under 'actions'.
+                action_cfg_for_type = ch.config[event_type_key]
+                if action_cfg_for_type is None:
+                    continue
+
+                # Normalize action_cfg_for_type to dict, if it just a list
+                if isinstance(action_cfg_for_type, collections.abc.Sequence):
+                    # typically a list of actions
+                    action_cfg_for_type = dict(actions=action_cfg_for_type)
+
+                if 'actions' not in action_cfg_for_type:
+                    self.log.error('expected dict with "actions" key at device %s ch %s event %s',
+                                   dev, ch, event_type)
+                    failures += 1
+                    continue
+
+                # Init storage
+                if not by_ch:
+                    by_ch = event_handlers_by_dev[dev.id] = {}
+                if not by_type:
+                    by_type = by_ch[ch.name] = {}
+
+                # For each configured event, this "event config" holds details of it
+                when_condition = action_cfg_for_type.get('when', None)
+                event_actions = []
+                by_type[event_type] = dict(
+                    # If a conditional was set for the event (not individual actions)
+                    when=when_condition,
+                    conditional=parse_conditional(when_condition, self.jinja_env),
+                    # When the event last occurred
+                    last_occurred=None,
+                    # When the event last was executed (i.e. not stopped by shared conditional)
+                    # Note that each individual event may still have been blocked.
+                    last_ran=None,
+                    # Which actions to execute
+                    actions=event_actions
+                )
+
+                # Try to load each configured action
+                for action_cfg in action_cfg_for_type['actions']:
+                    try:
+                        a = self.action_factory.create(dev, ch, event_type, action_cfg)
+                        a.init_conditional(action_cfg, self.jinja_env)
+                        event_actions.append(a)
+
+                        self.log.info("Adding action for %s ch %s, when %s do %s",
+                                      dev.id, ch, event_type, a)
+
+                    except OwMasterException as e:
+                        self.log.error("Failed to init '%s' action on device %s ch %s (%s): %s",
+                                       event_type, dev.id, ch.name, action_cfg, e, exc_info=True)
+
+                        failures += 1
+
+        return failures
 
     def handle_event_blocking(self, event):
+        if isinstance(event, OwConfigEvent):
+            if not event.is_reset:
+                # Device has been reconfigured, for example it might have updated channel
+                # information or other which was only available at runtime.
+                self._updated_device_config(event.device_id)
+            else:
+                self.log.debug('ignoring %s', event)
+            return
+
         # XXX: Only PIO events
         if not isinstance(event, OwPIOEvent):
             return

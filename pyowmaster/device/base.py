@@ -20,6 +20,8 @@ from time import time
 import logging
 from collections import namedtuple
 
+from pyowmaster.event.events import OwConfigEvent
+
 OwIoStatistic = namedtuple('OwIoStatistic', 'id operation uncached path time')
 OwIoStatistic.OP_READ = 1
 OwIoStatistic.OP_WRITE = 2
@@ -41,7 +43,7 @@ class Device(object):
         self.seen = False
         self.lost = False
 
-    def config(self, config):
+    def config(self, config, is_initial):
         pass
 
 
@@ -57,7 +59,7 @@ class OwDevice(Device):
         self.event_dispatcher = event_dispatcher
         self.stats = stats
 
-    def config(self, config):
+    def config(self, config, is_initial):
         """(Re-)Configure this device from config file.
 
         This looks for a device alias under either devices:<id>:alias, or if not there,
@@ -75,6 +77,18 @@ class OwDevice(Device):
             config.get(('devices', (self.id, self.type), 'max_write_time'), 1),
             config.get(('devices', (self.id, self.type), 'max_dir_time'), 2)
         ]
+
+        self.custom_config(config, is_initial)
+
+        self.emit_event(OwConfigEvent(time(), True))
+
+    def custom_config(self, config, is_initial):
+        """
+        Custom device-specific config should be implemented in this method.
+
+        When returned, a OwConfigEvent will be emited for the device.
+        """
+        pass
 
     def __getitem__(self, name_or_num):
         """

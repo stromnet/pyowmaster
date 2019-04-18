@@ -27,7 +27,16 @@ class OwEventBase(object):
         self.channel = None
 
     def __str__(self):
-        return "OwEvent[%d: %s, unknown]" % (self.timestamp, self.device_id)
+        return "OwEvent[%d: %s]" % (self.timestamp, self.device_id)
+
+
+class OwConfigEvent(OwEventBase):
+    """Describes that a configuration has changed for the device"""
+    def __init__(self, timestamp, is_initial=False):
+        super(OwConfigEvent, self).__init__(timestamp, is_initial)
+
+    def __str__(self):
+        return "OwConfigEvent[%d: %s]" % (self.timestamp, self.device_id)
 
 
 class OwCounterEvent(OwEventBase):
