@@ -310,10 +310,10 @@ class InfluxDBEventHandler(OwEventHandler):
                         # Retry up to 3 times, with the linger-timeout as backoff delay
                         exit_requested = exit_requested + 1
                         if exit_requested > 3:
-                            self.log.warn("Gave up on sending metrics during shutdown. Discarding")
+                            self.log.warning("Gave up on sending metrics during shutdown. Discarding")
                             break
                         else:
-                            self.log.warn("Failed to send metrics during shutdown, retrying")
+                            self.log.warning("Failed to send metrics during shutdown, retrying")
                             time.sleep(self.max_linger)
 
                 elif exit_requested:
@@ -364,7 +364,7 @@ class InfluxDBEventHandler(OwEventHandler):
                 self.log.debug("InfluxDB accepted our data")
                 return True
             elif 500 <= r.status_code < 600:
-                self.log.warn("InfluxDB server error (%d): %s", r.status_code, r.text)
+                self.log.warning("InfluxDB server error (%d): %s", r.status_code, r.text)
                 return False
             else:
                 if r.status_code == 400:
@@ -380,7 +380,7 @@ class InfluxDBEventHandler(OwEventHandler):
                                 faulty -= 1
 
                         if faulty > 0:
-                            self.log.warn("Discarding %d lines of faulty data", faulty)
+                            self.log.warning("Discarding %d lines of faulty data", faulty)
 
                         return True
                     else:
@@ -393,7 +393,7 @@ class InfluxDBEventHandler(OwEventHandler):
                 return False
 
         except requests.exceptions.RequestException as e:
-            self.log.warn("Failed to talk to InfluxDB: %s", e)
+            self.log.warning("Failed to talk to InfluxDB: %s", e)
             return False
 
 

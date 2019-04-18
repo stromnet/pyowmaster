@@ -142,7 +142,7 @@ class ActionEventHandler(ThreadedOwEventHandler):
         self.event_handlers_by_dev = event_handlers_by_dev
 
         if failures > 0:
-            self.log.warn("One or more error(s) occured during action initialization")
+            self.log.warning("One or more error(s) occured during action initialization")
 
     def handle_event_blocking(self, event):
         # XXX: Only PIO events

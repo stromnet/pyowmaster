@@ -110,7 +110,7 @@ class MoaT(OwDevice):
 
     def reboot_detected(self, reason):
         """Call when reboot is detected, triggers re-init of all channels"""
-        self.log.warn("%s: device rebooted, trigged by '%s'", self, reason)
+        self.log.warning("%s: device rebooted, trigged by '%s'", self, reason)
         self.init_channels(self.dev_cfg)
 
     def init_channels(self, config):
@@ -213,7 +213,7 @@ class MoaT(OwDevice):
         for port_type in sources:
             ports = self.ow_read_str('alarm/%s' % port_type, uncached=True)
             if len(ports) == 0:
-                self.log.warn("%s: Device alarmed on %s, but non of the channels alarmed", self, port_type)
+                self.log.warning("%s: Device alarmed on %s, but non of the channels alarmed", self, port_type)
                 continue
 
             ports = ports.split(',')
@@ -262,7 +262,7 @@ class MoaT(OwDevice):
 
             # Thus no need to process further alarms.
         else:
-            self.log.warn("%s: Unknown status field %s: %s", self, status_name, val)
+            self.log.warning("%s: Unknown status field %s: %s", self, status_name, val)
 
         return False
 
@@ -610,8 +610,8 @@ class MoaTADCChannel(MoaTChannel):
             # find out what state we are in
             new_state_ent = self.get_state_entry(self.value)
             if new_state_ent is None:
-                self.log.warn("%s %s: got alarm on value %d, does not match any configured state. Disabling thresholds",
-                              self.device, self.name, self.value)
+                self.log.warning("%s %s: got alarm on value %d, does not match any configured state. Disabling thresholds",
+                                 self.device, self.name, self.value)
                 self.set_thresholds(ADC_MAX, ADC_MIN)
                 return
 
@@ -621,8 +621,8 @@ class MoaTADCChannel(MoaTChannel):
                 # which is + or -
                 guess_state_ent = self.guess_state_entry(adc_threshold_crossed)
                 if guess_state_ent is None:
-                    self.log.warn("%s %s: got %s alarm on value %d (%s), current state does not allow guessing. Ignoring",
-                                  self.device, self.name, adc_threshold_crossed, self.value, new_state_ent[0])
+                    self.log.warning("%s %s: got %s alarm on value %d (%s), current state does not allow guessing. Ignoring",
+                                     self.device, self.name, adc_threshold_crossed, self.value, new_state_ent[0])
                     return
 
                 self.log.debug("%s %s: got %s alarm on value %d (%s), guessing target state was %s",
@@ -637,8 +637,8 @@ class MoaTADCChannel(MoaTChannel):
             self.set_state(timestamp, new_state_ent, False)
         else:
             # Should not get alarms; Thresholds should already be disbled?
-            self.log.warn("%s %s: got alarm on value %d, but thresholds should have been disabled",
-                          self.device, self.name, self.value)
+            self.log.warning("%s %s: got alarm on value %d, but thresholds should have been disabled",
+                             self.device, self.name, self.value)
             self.set_thresholds(ADC_MAX, ADC_MIN)
 
     def set_state(self, timestamp, state_ent, is_reset):
@@ -664,8 +664,8 @@ class MoaTADCChannel(MoaTChannel):
             low_threshold = state_ent[1]
             high_threshold = state_ent[2]
         else:
-            self.log.warn("%s %s: value is outside of any predefined threshold sets: %d",
-                          self.device, self.name, value)
+            self.log.warning("%s %s: value is outside of any predefined threshold sets: %d",
+                             self.device, self.name, value)
             # Calculate some defaults surrounding this value
             low_threshold = max(ADC_MIN, value-5000)
             high_threshold = min(ADC_MAX, value+5000)

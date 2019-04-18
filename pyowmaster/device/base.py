@@ -176,8 +176,8 @@ class OwDevice(Device):
         self.stats.increment('ops.ms_' + OwIoStatistic.OPS[stats.operation], stats.time*1000.0)
 
         if stats.time > self.max_exec_time[stats.operation]:
-            self.log.warn("%s: %s %s took %.2fs (max_exec_time %.2fs)",
-                          stats.id, OwIoStatistic.OPS[stats.operation], stats.path, stats.time, self.max_exec_time[stats.operation])
+            self.log.warning("%s: %s %s took %.2fs (max_exec_time %.2fs)",
+                             stats.id, OwIoStatistic.OPS[stats.operation], stats.path, stats.time, self.max_exec_time[stats.operation])
         elif self.log.isEnabledFor(logging.DEBUG):
             self.log.debug("%s: %s %s took %.2fs (max_exec_time %.2fs)",
                            stats.id, OwIoStatistic.OPS[stats.operation], stats.path, stats.time, self.max_exec_time[stats.operation])
@@ -186,7 +186,7 @@ class OwDevice(Device):
         pass
 
     def on_alarm(self, timestamp):
-        self.log.warn("%s: Unhandled alarm", str(self))
+        self.log.warning("%s: Unhandled alarm", str(self))
 
     def __str__(self):
         return "%s[%s]" % (self.__class__.__name__, self.device_id)

@@ -86,7 +86,7 @@ class OwEventDispatcher(OwEventHandler):
 
         if self.paused:
             if len(self.pause_queue) >= 100:
-                self.log.warn("Pause queue is %d entries long, dropping oldest", len(self.pause_queue))
+                self.log.warning("Pause queue is %d entries long, dropping oldest", len(self.pause_queue))
                 self.pause_queue.pop(0)
 
             self.pause_queue.append(event)

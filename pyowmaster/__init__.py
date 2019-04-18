@@ -233,7 +233,7 @@ class OwMaster(object):
                 if dev.seen:
                     # Was seen once, but then got lost
                     if dev.lost > 2:
-                        self.log.warn("Device %s back online", dev)
+                        self.log.warning("Device %s back online", dev)
                     else:
                         self.log.info("Device %s back online", dev)
                 else:
@@ -255,7 +255,7 @@ class OwMaster(object):
                         # Not marked lost in earlier scans
                         if not dev.seen:
                             # Never seen, but configured.
-                            self.log.warn("Device is configured but not on bus: %s", dev)
+                            self.log.warning("Device is configured but not on bus: %s", dev)
                         else:
                             # Got lost since last scan
                             self.log.info("Lost device %s (soft loss)", dev)
@@ -265,7 +265,7 @@ class OwMaster(object):
                         if dev.lost == 2 and dev.seen:
                             # On second lost marking, emit WARN
                             # This avoids WARN messages for devices which are intermintnly lost..
-                            self.log.warn("Lost device %s (lost for %d scans)", dev, dev.lost)
+                            self.log.warning("Lost device %s (lost for %d scans)", dev, dev.lost)
 
                         dev.lost += 1
 
@@ -385,8 +385,8 @@ class DeviceFactory(object):
         try:
             dev.config(self.config)
         except (ProtocolError, OwnetError, ConnError) as e:
-            self.log.warn("Failed to configure %s, OW failure: %s",
-                          dev_id, e)
+            self.log.warning("Failed to configure %s, OW failure: %s",
+                             dev_id, e)
 
         return dev
 
@@ -455,8 +455,8 @@ class DeviceInventory(object):
                 # This may occur if a device config requires online device,
                 # but failed to find it, or if it failed to configure the remote device.
                 # It should try later!
-                self.log.warn("Failed to configure %s, OW failure: %s",
-                              dev, e)
+                self.log.warning("Failed to configure %s, OW failure: %s",
+                                 dev, e)
             except OwMasterException:
                 self.log.error("Failed to configure device %s",
                                dev, exc_info=True)
@@ -523,8 +523,8 @@ class DeviceInventory(object):
             if self.aliases[alias] == dev_id:
                 return
 
-            self.log.warn("Duplicate alias %s, seen on device %s and device %s",
-                          alias, dev_id, self.aliases[alias])
+            self.log.warning("Duplicate alias %s, seen on device %s and device %s",
+                             alias, dev_id, self.aliases[alias])
 
         self.aliases[alias] = dev_id
 

@@ -196,7 +196,7 @@ class OwPIODevice(OwDevice):
         else:
             for ch in self.channels:
                 if ch.is_input:
-                    self.log.warn("Channel configured as Input, but this device does not have alarm support. No polling implemented!")
+                    self.log.warning("Channel configured as Input, but this device does not have alarm support. No polling implemented!")
                     break
 
     def _calculate_alarm_setting(self):
@@ -221,7 +221,7 @@ class OwPIODevice(OwDevice):
         sensed = int(self.ow_read_str('sensed.BYTE', uncached=True))
 #        if self._last_sensed != None and self._last_sensed != sensed:
 #            # XXX: Racey with alarm
-#            self.log.warn("%s: Sensed altered without on_alarm being notified. Last=%d, now=%d",\
+#            self.log.warning("%s: Sensed altered without on_alarm being notified. Last=%d, now=%d",\
 #                    self, self._last_sensed, sensed)
 #
 #        elif self._last_sensed == None:
@@ -260,7 +260,7 @@ class OwPIODevice(OwDevice):
             return
 
         if self.check_alarm_config():
-            self.log.warn("%s: Ignoring alarm, device was not ready", self)
+            self.log.warning("%s: Ignoring alarm, device was not ready", self)
             return
 
         # Read latch + sensed

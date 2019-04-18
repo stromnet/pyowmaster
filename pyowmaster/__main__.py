@@ -65,8 +65,8 @@ class Main:
                 except ConnError as e:
                     tries += 1
                     backoff = min((tries * 2) + 1, 60)
-                    log.warn("Failed initial connect to owserver on port %d, retrying in %ds: %s",
-                            ow_port, backoff, e)
+                    log.warning("Failed initial connect to owserver on port %d, retrying in %ds: %s",
+                                ow_port, backoff, e)
                     time.sleep(backoff)
 
             self.owm.main()

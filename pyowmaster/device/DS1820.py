@@ -67,8 +67,8 @@ class DS1820(OwDevice):
 
         # Check if it is sane
         if temp < self.min_temp or temp > self.max_temp:
-            self.log.warn("%s: outside of sane limits, ignoring (actual: %.2f %s, min: %.2f, max: %.2f)",
-                          self, temp, self.unit, self.min_temp, self.max_temp)
+            self.log.warning("%s: outside of sane limits, ignoring (actual: %.2f %s, min: %.2f, max: %.2f)",
+                             self, temp, self.unit, self.min_temp, self.max_temp)
             return
 
         if self.last is None:

@@ -109,9 +109,9 @@ class OpenTSDBEventHandler(ThreadedOwEventHandler):
             s.sendall(cmd+"\n")
         except Exception as e:
             if is_retry:
-                self.log.warn("Failed to talk to OpenTSDB: %s. Dropping event %s", e, event)
+                self.log.warning("Failed to talk to OpenTSDB: %s. Dropping event %s", e, event)
             else:
-                self.log.warn("Failed to talk to OpenTSDB: %s. Reconnecting and retrying", e)
+                self.log.warning("Failed to talk to OpenTSDB: %s. Reconnecting and retrying", e)
 
             self.cleanup()
 
