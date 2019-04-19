@@ -54,6 +54,7 @@ class OwDevice(Device):
         self.path = '/%s/' % self.id
         self.path_uncached = '/uncached/%s/' % self.id
         self.simultaneous = None
+        self.device_id = None  # type: DeviceId
 
     def init(self, event_dispatcher, stats):
         self.event_dispatcher = event_dispatcher

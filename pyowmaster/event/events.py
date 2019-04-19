@@ -22,7 +22,7 @@ class OwEventBase(object):
     1-Wire devices as result of alarms or regular polling"""
     def __init__(self, timestamp, is_reset):
         self.timestamp = timestamp
-        self.device_id = None
+        self.device_id = None  # type: pyowmaster.device.base.DeviceId
         self.is_reset = is_reset
         self.channel = None
 

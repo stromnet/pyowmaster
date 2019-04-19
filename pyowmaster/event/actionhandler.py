@@ -174,7 +174,7 @@ class ActionEventHandler(ThreadedOwEventHandler):
             if not event.is_reset:
                 # Device has been reconfigured, for example it might have updated channel
                 # information or other which was only available at runtime.
-                self._updated_device_config(event.device_id)
+                self._updated_device_config(event.device_id.id)
             else:
                 self.log.debug('ignoring %s', event)
             return
