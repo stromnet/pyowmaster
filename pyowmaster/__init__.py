@@ -447,7 +447,7 @@ class DeviceInventory(object):
                 just_created.add(dev_id)
 
         # Now, configure all existing devices
-        for dev_id in self.devices:
+        for dev_id in list(self.devices.keys()):
             dev = self.devices[dev_id]
             if not dev:
                 # Unknown device type
@@ -455,6 +455,16 @@ class DeviceInventory(object):
 
             if dev_id in just_created:
                 # Was just created, and thus configured
+                continue
+
+            if dev.lost and dev_id not in configured_ids:
+                self.log.warning('Device %s is not configured, and no longer on bus. Removing from inventory.', dev)
+                for alias in self.aliases:
+                    if self.aliases[alias] == dev_id:
+                        self.log.info('Removing alias %s for %s', alias, dev_id)
+                        del self.aliases[alias]
+
+                del self.devices[dev_id]
                 continue
 
             try:
