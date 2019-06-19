@@ -55,6 +55,7 @@ class OwMaster(object):
     def refresh_config(self, config):
         """This will ask all devices to refresh their config from the cfg struct"""
         self.config = config
+        self.factory.refresh_config(self.config)
         self.inventory.refresh_config(self.config)
         self.event_dispatcher.refresh_config(self.config)
 
@@ -369,6 +370,10 @@ class DeviceFactory(object):
         for d in pyowmaster.device.__all__:
             m = importlib.import_module('pyowmaster.device.'+d)
             m.register(self)
+
+    def refresh_config(self, root_config):
+        """Update configuration. Does not affect devices, only applicable for newly created devices"""
+        self.config = root_config
 
     def register(self, family_code, class_ref):
         assert self.device_types.get(family_code) is None, "Family code %s already registered" % family_code
