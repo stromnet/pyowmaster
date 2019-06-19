@@ -65,10 +65,15 @@ class OwDevice(Device):
 
         This looks for a device alias under either devices:<id>:alias, or if not there,
         falling back to devices:aliases:<id>"""
-        self.alias = config.get(('devices', self.id, 'alias'), None)
+        if self.id:
+            self.alias = config.get(('devices', self.id, 'alias'), None)
 
-        if not self.alias:
-            self.alias = config.get(('devices', 'aliases', self.id), None)
+            if not self.alias:
+                self.alias = config.get(('devices', 'aliases', self.id), None)
+
+        else:
+            # Special case for OwStatistics
+            self.alias = 'owserver-stats'
 
         self.device_id = DeviceId(self.id, self.alias)
 
