@@ -39,12 +39,21 @@ class OwStatistics(OwDevice):
         self.path_uncached = "/uncached/statistics/"
         self.device_id = DeviceId(None, 'OwStatistics')
 
+        self.errors = {k:0 for k in ERRORS}
+        self.tries = dict(CRC16_tries=0,
+                          CRC8_tries=0,
+                          read_tries_1=0,
+                          read_tries_2=0,
+                          read_tries_3=0)
+
     def on_seen(self, timestamp):
         """Read all error known counters"""
         for e in ERRORS:
             path = "errors/%s" % e
             data = self.ow_read(path)
             value = int(data)
+
+            self.errors[e] = value
 
             ev = OwStatisticsEvent(timestamp, OwStatisticsEvent.CATEOGORY_ERROR, e, value)
             self.emit_event(ev, True)
@@ -62,10 +71,13 @@ class OwStatistics(OwDevice):
                 for n in range(0, len(read_tries)):
                     value = int(read_tries[n])
 
+                    self.tries[f'{e}_{n+1}'] = value
+
                     ev = OwStatisticsEvent(timestamp, OwStatisticsEvent.CATEOGORY_TRIES, '%s_%d' % (e, n+1), value)
                     self.emit_event(ev, True)
 
             else:
                 value = int(data)
+                self.tries[e] = value
                 ev = OwStatisticsEvent(timestamp, OwStatisticsEvent.CATEOGORY_TRIES, e, value)
                 self.emit_event(ev, True)

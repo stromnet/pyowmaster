@@ -27,6 +27,7 @@ from pyowmaster.device.base import OwBus
 from pyowmaster.device.stats import OwStatistics, OwStatisticsEvent
 from pyowmaster.event.handler import OwEventDispatcher
 from pyowmaster.exception import ConfigurationError, OwMasterException
+
 import importlib
 import time
 import logging
@@ -98,6 +99,8 @@ class OwMaster(object):
         # Load handler modules
         self.load_handlers()
 
+        self.init_prometheus()
+
         # Key'ed SCAN_FULL(0) and SCAN_ALARM(1)
         self.last_scan = [0.0, 0.0]
         self.scan_interval = [
@@ -142,6 +145,24 @@ class OwMaster(object):
             self.event_dispatcher.shutdown()
         except:
             self.log.error("Unhandled exception while shutting down event handlers", exc_info=True)
+
+    def init_prometheus(self):
+        cfg = self.config.get('prometheus')
+        if not cfg:
+            return
+
+        # Late import, in case not installed.
+        import prometheus_client
+        from pyowmaster.prometheus import OwMasterPrometheusCollector
+
+        if not cfg.get('port'):
+            self.log.error("Prometheus 'port' must be configured")
+            return
+
+        default_labels = cfg.get('labels', {})
+
+        prometheus_client.start_http_server(cfg.get('port'))
+        prometheus_client.REGISTRY.register(OwMasterPrometheusCollector(self, default_labels))
 
     def load_handlers(self):
         modules = self.config.get('modules', {})
@@ -627,10 +648,10 @@ class MasterStatistics:
             if '.' not in key:
                 raise Exception("Statistics key should have the format <category>.<name>")
 
-            self.values[key] = 0
+            self.values[key] = ['counter', 0]
 
 #        self.log.debug("Incrementing %s with %.3f", key, value)
-        self.values[key] += value
+        self.values[key][1] += value
 
     def gauge(self, key, value):
         """Set a statistics gauge to a given vaule
@@ -641,7 +662,9 @@ class MasterStatistics:
             if '.' not in key:
                 raise Exception("Statistics key should have the format <category>.<name>")
 
-        self.values[key] = value
+            self.values[key] = ['gauge', value]
+        else:
+            self.values[key][1] = value
 
     def report(self):
         """Report all tracked values"""
@@ -649,7 +672,7 @@ class MasterStatistics:
         timestamp = time.time()
         for key in self.values:
             (category, name) = key.split('.')
-            value = self.values[key]
+            type, value = self.values[key]
 
             ev = OwStatisticsEvent(timestamp, category, name, value)
             self.event_dispatcher.handle_event(ev)
