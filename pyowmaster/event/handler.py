@@ -119,7 +119,7 @@ class ThreadedOwEventHandler(OwEventHandler):
         self.queue = queue.Queue(maxsize=max_queue_size)
 
     def start(self):
-        if not self.thread.isAlive():
+        if not self.thread.is_alive():
             self.thread.start()
 
     def handle_event_blocking(self, event):
